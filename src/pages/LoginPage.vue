@@ -29,7 +29,8 @@ const handleLogin = async () => {
 
   loading.value = true
   try {
-    const res = await axios.post('http://127.0.0.1:8000/api/login/', form)
+    // const res = await axios.post('http://127.0.0.1:8000/api/login/'
+    const res = await axios.post('/api/login/', form)
     if (res.data.status === 'success') {
       // 将用户名保存到 localStorage，供后续页面使用
       localStorage.setItem('username', res.data.user)
