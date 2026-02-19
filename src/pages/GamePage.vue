@@ -50,8 +50,22 @@ const initGame = async () => {
   const usernameStr = username.value
 
   // 连接后端 WebSocket，在 URL 中传递用户名
-  socket = new WebSocket(`ws://127.0.0.1:8000/ws/game/${gameId}/${roomId}/?username=${encodeURIComponent(usernameStr)}`)
+  // socket = new WebSocket(`ws://127.0.0.1:8000/ws/game/${gameId}/${roomId}/?username=${encodeURIComponent(usernameStr)}`)
+  // 1. 获取当前页面的主机名 (localhost 或 106.54.198.172)
+  const hostname = window.location.hostname;
+  // 2. 获取当前页面的协议 (http: 或 https:)
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
+  // 3. 智能判定后端地址
+  // 如果是本地开发，连接 8000 端口；如果是服务器，直接连接当前 Host (通过 Nginx 转发)
+  const backendHost = (hostname === 'localhost' || hostname === '127.0.0.1') 
+    ? '127.0.0.1:8000' 
+    : window.location.host; 
+
+  const wsUrl = `${protocol}//${backendHost}/ws/game/${gameId}/${roomId}/?username=${encodeURIComponent(usernameStr)}`;
+
+  console.log("正在连接 WebSocket:", wsUrl);
+  socket = new WebSocket(wsUrl);
   socket.onmessage = (e) => {
     const data = JSON.parse(e.data)
 
