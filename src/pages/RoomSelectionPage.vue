@@ -72,9 +72,10 @@ onUnmounted(() => {
   }
 })
 
+// --- 修改点 1：获取房间列表使用相对路径 ---
 const fetchRooms = async () => {
   try {
-    const res = await axios.get(`http://127.0.0.1:8000/api/rooms/?game=${gameId.value}`)
+    const res = await axios.get(`/api/rooms/?game=${gameId.value}`)
     console.log('获取房间列表:', res.data)
     rooms.value = res.data.rooms
   } catch (err) {
@@ -89,6 +90,7 @@ const joinRoom = (roomId) => {
   })
 }
 
+// --- 修改点 2：创建房间使用相对路径 ---
 const createRoom = async () => {
   // 生成房间号
   const newRoomId = String(Math.floor(Math.random() * 10000))
@@ -98,7 +100,7 @@ const createRoom = async () => {
 
   try {
     // 先调用后端 API 创建房间
-    const res = await axios.post('http://127.0.0.1:8000/api/create-room/', {
+    const res = await axios.post('/api/create-room/', {
       room_id: newRoomId,
       game: gameId.value,
       username: username  // 传递当前登录用户的用户名
@@ -138,6 +140,7 @@ const logout = () => {
 </script>
 
 <style scoped>
+/* 样式部分保持不变 */
 .room-selection-wrapper {
   min-height: 100vh;
   background: #f0f2f5;
