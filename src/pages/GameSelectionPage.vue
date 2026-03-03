@@ -10,9 +10,9 @@
         v-for="game in games"
         :key="game.id"
         class="game-card"
-        @click="selectGame(game.id)"
+        @click="selectGame(game)"
       >
-        <div class="game-icon">🎮</div>
+        <div class="game-icon">{{ game.icon }}</div>
         <h3>{{ game.name }}</h3>
         <p>{{ game.description }}</p>
       </div>
@@ -30,18 +30,31 @@ const games = ref([
   {
     id: 'gomoku',
     name: '五子棋',
-    description: '经典五子棋对战游戏'
+    description: '经典五子棋对战游戏',
+    icon: '🎮'
   },
-  // 后续可以添加更多游戏
-  // { id: 'chess', name: '象棋', description: '中国象棋对战' },
-  // { id: 'poker', name: '斗地主', description: '斗地主游戏' }
+  {
+    id: 'board',
+    name: '便签墙',
+    description: '在这里留下你的足迹',
+    icon: '📌',
+    // 增加一个跳转标记
+    isExternal: true,
+    url: '/api/board/view/' 
+  }
 ])
 
-const selectGame = (gameId) => {
-  router.push({
-    name: 'room-selection',
-    params: { gameId }
-  })
+const selectGame = (game) => {
+  // 修改点：如果是外部链接（便签墙），直接改变浏览器地址
+  if (game.isExternal) {
+    window.location.href = game.url
+  } else {
+    // 如果是普通游戏，继续走 Vue 路由
+    router.push({
+      name: 'room-selection',
+      params: { gameId: game.id }
+    })
+  }
 }
 
 const logout = () => {
