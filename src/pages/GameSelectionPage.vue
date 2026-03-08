@@ -1,8 +1,11 @@
 <template>
   <div class="game-selection-wrapper">
     <div class="header">
-      <h2>选择游戏</h2>
-      <button @click="logout" class="btn-logout">退出登录</button>
+      <h2>选择功能</h2>
+      <div class="user-info">
+        <span>欢迎, {{ username }}</span>
+        <button @click="logout" class="btn-logout">退出登录</button>
+      </div>
     </div>
 
     <div class="games-container">
@@ -21,35 +24,40 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+const username = ref('')
+
+onMounted(() => {
+  username.value = localStorage.getItem('username') || '游客'
+})
 
 const games = ref([
   {
     id: 'gomoku',
     name: '五子棋',
     description: '经典五子棋对战游戏',
-    icon: '🎮'
+    icon: '🎮',
+    type: 'game'
   },
   {
     id: 'board',
-    name: '便签墙',
-    description: '在这里留下你的足迹',
+    name: '毛毡便签墙',
+    description: '上传照片，留下你的足迹',
     icon: '📌',
-    // 增加一个跳转标记
-    isExternal: true,
-    url: '/api/board/view/' 
+    type: 'feature'
   }
 ])
 
 const selectGame = (game) => {
-  // 修改点：如果是外部链接（便签墙），直接改变浏览器地址
-  if (game.isExternal) {
-    window.location.href = game.url
+  // 根据不同的 id 跳转到对应的 Vue 路由
+  if (game.id === 'board') {
+    // 跳转到我们在 router/index.js 中定义的 'StickyBoard'
+    router.push('/board')
   } else {
-    // 如果是普通游戏，继续走 Vue 路由
+    // 跳转到游戏房间选择
     router.push({
       name: 'room-selection',
       params: { gameId: game.id }
@@ -85,24 +93,30 @@ const logout = () => {
   font-size: 28px;
 }
 
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
 .btn-logout {
-  padding: 10px 20px;
+  padding: 8px 16px;
   background: #ff4d4f;
   color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  transition: opacity 0.3s;
+  transition: all 0.3s;
 }
 
 .btn-logout:hover {
-  opacity: 0.8;
+  background: #ff7875;
 }
 
 .games-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 25px;
   max-width: 800px;
   margin: 0 auto;
 }
@@ -112,30 +126,33 @@ const logout = () => {
   border-radius: 12px;
   padding: 30px;
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
   text-align: center;
+  border: 1px solid transparent;
 }
 
 .game-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+  border-color: #1890ff;
 }
 
 .game-icon {
-  font-size: 48px;
+  font-size: 56px;
   margin-bottom: 20px;
 }
 
 .game-card h3 {
   margin: 0 0 10px 0;
-  font-size: 20px;
-  color: #333;
+  font-size: 22px;
+  color: #1f1f1f;
 }
 
 .game-card p {
   margin: 0;
-  color: #666;
-  font-size: 14px;
+  color: #8c8c8c;
+  font-size: 15px;
+  line-height: 1.5;
 }
 </style>
