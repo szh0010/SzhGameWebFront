@@ -4,6 +4,7 @@ import RegisterPage from '../pages/RegisterPage.vue'
 import GameSelectionPage from '../pages/GameSelectionPage.vue'
 import RoomSelectionPage from '../pages/RoomSelectionPage.vue'
 import GamePage from '../pages/GamePage.vue'
+import StickyBoard from '../pages/StickyBoard.vue' // 1. 引入新创建的便签墙组件
 
 const routes = [
   {
@@ -33,6 +34,13 @@ const routes = [
     name: 'game',
     component: GamePage,
     meta: { requiresAuth: true }
+  },
+  {
+    // 2. 添加便签墙路由配置
+    path: '/board',
+    name: 'StickyBoard',
+    component: StickyBoard,
+    meta: { requiresAuth: true } // 只有登录后才能访问
   },
   {
     path: '/',
