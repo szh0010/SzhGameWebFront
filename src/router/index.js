@@ -4,7 +4,10 @@ import RegisterPage from '../pages/RegisterPage.vue'
 import GameSelectionPage from '../pages/GameSelectionPage.vue'
 import RoomSelectionPage from '../pages/RoomSelectionPage.vue'
 import GamePage from '../pages/GamePage.vue'
-import StickyBoard from '../pages/StickyBoard.vue' // 1. 引入新创建的便签墙组件
+import StickyBoard from '../pages/StickyBoard.vue'
+import ProfilePage from '../pages/ProfilePage.vue'
+// 1. 导入新创建的好友页面
+import FriendsPage from '../pages/FriendsPage.vue'
 
 const routes = [
   {
@@ -36,11 +39,23 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    // 2. 添加便签墙路由配置
     path: '/board',
     name: 'StickyBoard',
     component: StickyBoard,
-    meta: { requiresAuth: true } // 只有登录后才能访问
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: ProfilePage,
+    meta: { requiresAuth: true }
+  },
+  // 2. 新增：好友中心路由
+  {
+    path: '/friends',
+    name: 'Friends',
+    component: FriendsPage,
+    meta: { requiresAuth: true }
   },
   {
     path: '/',
@@ -53,7 +68,9 @@ const router = createRouter({
   routes
 })
 
-// 导航守卫，检查是否已登录
+/**
+ * 导航守卫
+ */
 router.beforeEach((to, from, next) => {
   const isLoggedIn = localStorage.getItem('username')
 

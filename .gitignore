@@ -1,4 +1,4 @@
-# Logs
+# === 日志文件 (Logs) ===
 logs
 *.log
 npm-debug.log*
@@ -7,18 +7,42 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# === 依赖与构建输出 (Dependencies / Build) ===
+node_modules/
+dist/
+dist-ssr/
 *.local
 
-# Editor directories and files
+# === 环境配置文件 (Environment Variables) ===
+# 保护本地开发环境的 API 地址不被泄露
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# === 缓存与临时文件 (Cache / Temp) ===
+.eslintcache
+.stylelintcache
+.cache/
+.vite/
+node_modules/.cache
+*.tsbuildinfo
+
+# === 编辑器与系统文件 (Editor / OS) ===
 .vscode/*
 !.vscode/extensions.json
-.idea
+!.vscode/launch.json
+!.vscode/settings.json
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+Thumbs.db
+
+# === 常见的本地开发工具 ===
+.npm
+.pnpm-debug.log*
