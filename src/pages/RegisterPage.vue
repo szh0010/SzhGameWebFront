@@ -23,7 +23,7 @@ const loading = ref(false)
 const form = reactive({ username: '', password: '', confirmPassword: '' })
 
 // 后端基础路径
-const API_BASE_URL = 'http://127.0.0.1:8000'
+const API_BASE_URL = ''
 
 const handleRegister = async () => {
   if (!form.username || !form.password || !form.confirmPassword) {

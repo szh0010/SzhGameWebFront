@@ -61,7 +61,7 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 
 const router = useRouter();
-const API_BASE = 'http://127.0.0.1:8000'; 
+const API_BASE = ''; 
 
 const profile = ref({ 
   username: '', 

@@ -47,7 +47,7 @@ import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
 // 配置后端基地址，方便统一修改
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = '';
 
 const notes = ref([]);
 const newNote = ref({ title: '', content: '' });

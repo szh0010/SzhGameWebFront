@@ -1,7 +1,7 @@
 <template>
   <div class="login-wrapper">
     <div class="login-card">
-      <h2>QIALO</h2>
+      <h2>Ciallo</h2>
       <input v-model="form.username" placeholder="请输入用户名" />
       <input v-model="form.password" type="password" placeholder="请输入密码" @keyup.enter="handleLogin" />
       <button @click="handleLogin" :disabled="loading">{{ loading ? '登录中...' : '进入游戏' }}</button>
@@ -22,7 +22,7 @@ const loading = ref(false)
 const form = reactive({ username: '', password: '' })
 
 // 定义后端基础路径
-const API_BASE_URL = 'http://127.0.0.1:8000'
+const API_BASE_URL = ''
 
 const handleLogin = async () => {
   if (!form.username || !form.password) {

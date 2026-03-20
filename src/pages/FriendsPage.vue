@@ -78,7 +78,7 @@
 import { ref, onMounted } from 'vue'; // ✨ 引入 onMounted 生命周期钩子
 import axios from 'axios';
 
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = '';
 const myUid = ref(localStorage.getItem('user_id') || '----');
 const searchId = ref('');
 const searchResult = ref(null);
