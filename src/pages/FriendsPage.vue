@@ -49,9 +49,14 @@
             <img :src="formatUrl(friend.avatar)" class="item-avatar" />
             <div class="item-info">
               <p class="item-name">{{ friend.nickname || friend.username }}</p>
-              <p class="item-status">在线</p>
+              <p :class="['item-status', friend.is_online ? 'status-online' : 'status-offline']">
+                {{ friend.is_online ? '在线' : '离线' }}
+              </p>
             </div>
-            <button class="action-btn">对战</button>
+            <div class="item-actions">
+              <button class="chat-btn" @click="goToChat(friend.uid)">💬 私聊</button>
+              <button class="action-btn" @click="startGomoku(friend.uid)">对战</button>
+            </div>
           </div>
           <p v-if="friendList.length === 0" class="empty-hint">暂无好友，快去搜索 ID 结识新朋友吧！</p>
         </div>
@@ -75,9 +80,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'; // ✨ 引入 onMounted 生命周期钩子
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import axios from 'axios';
 
+const router = useRouter();
 const API_BASE = '';
 const myUid = ref(localStorage.getItem('user_id') || '----');
 const searchId = ref('');
@@ -89,10 +96,9 @@ const friendList = ref([]);
 const requestList = ref([]);
 const pendingCount = ref(0);
 
-// --- 1. ✨ 数据初始化加载逻辑 ---
+// --- 1. 数据初始化加载 ---
 const loadSocialData = async () => {
   try {
-    // 同时获取好友列表和待处理申请
     const [friendsRes, requestsRes] = await Promise.all([
       axios.get(`${API_BASE}/api/board/profile/my_friends/`, { withCredentials: true }),
       axios.get(`${API_BASE}/api/board/profile/my_requests/`, { withCredentials: true })
@@ -106,16 +112,23 @@ const loadSocialData = async () => {
   }
 };
 
-// 页面加载完成后立即执行
 onMounted(() => {
   loadSocialData();
 });
 
-// --- 2. 搜索逻辑 ---
+// --- 2. 导航逻辑 ---
+const goToChat = (uid) => {
+  router.push(`/chat/${uid}`);
+};
+
+const startGomoku = (uid) => {
+  router.push({ name: 'room-selection', params: { gameId: 'gomoku' } });
+};
+
+// --- 3. 搜索与申请逻辑 ---
 const handleSearch = async () => {
   const cleanId = searchId.value.toString().trim();
   if (!cleanId) return;
-
   isSearching.value = true;
   searchResult.value = null;
 
@@ -124,21 +137,18 @@ const handleSearch = async () => {
       params: { uid: cleanId },
       withCredentials: true
     });
-    
     if (res.data && (res.data.uid || res.data.id)) {
       searchResult.value = res.data;
     } else {
       alert("🔍 未找到该用户");
     }
   } catch (err) {
-    console.error("搜索失败:", err);
     alert("🔍 未找到该用户");
   } finally {
     isSearching.value = false;
   }
 };
 
-// --- 3. 发送好友申请 ---
 const sendFriendRequest = async (uid) => {
   try {
     const res = await axios.post(`${API_BASE}/api/board/profile/add_friend/`, 
@@ -148,25 +158,21 @@ const sendFriendRequest = async (uid) => {
     alert(`✅ ${res.data.message || '申请已发送'}`);
     searchResult.value = null;
     searchId.value = '';
-    loadSocialData(); // 发送完刷新一下，虽然通常不会立刻体现在列表里
+    loadSocialData();
   } catch (err) {
     alert(`❌ 发送失败: ${err.response?.data?.error || '服务器忙'}`);
   }
 };
 
-// --- 4. ✨ 处理申请逻辑 (同意/忽略) ---
 const handleRequest = async (reqId, action) => {
   try {
-    const res = await axios.post(`${API_BASE}/api/board/profile/handle_request/`, 
+    await axios.post(`${API_BASE}/api/board/profile/handle_request/`, 
       { req_id: reqId, action: action },
       { withCredentials: true }
     );
-    
     alert(action === 'accept' ? "🤝 你们已经是好友啦！" : "🗑️ 已忽略");
-    // 成功处理后，重新加载所有列表数据
     loadSocialData();
   } catch (err) {
-    console.error("处理失败:", err);
     alert("⚠️ 操作失败，请重试");
   }
 };
@@ -178,7 +184,6 @@ const formatUrl = (url) => {
 </script>
 
 <style scoped>
-/* 保持你提供的 CSS 样式完全一致 */
 .friends-container { padding: 20px; display: flex; justify-content: center; background: #f8fafc; min-height: calc(100vh - 60px); }
 .friends-card { background: white; width: 100%; max-width: 480px; border-radius: 24px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
 .friends-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
@@ -188,7 +193,6 @@ const formatUrl = (url) => {
 .search-bar input { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; outline: none; transition: 0.3s; }
 .search-bar input:focus { border-color: #42b983; box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.1); }
 .search-bar button { background: #42b983; color: white; border: none; padding: 0 20px; border-radius: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-.search-bar button:active { transform: scale(0.95); }
 .search-result-card { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .user-brief { display: flex; align-items: center; gap: 12px; }
 .mini-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: white; }
@@ -204,8 +208,17 @@ const formatUrl = (url) => {
 .item-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
 .item-info { flex: 1; margin-left: 14px; }
 .item-name { margin: 0; font-weight: 600; font-size: 15px; }
-.item-status { margin: 0; font-size: 12px; color: #10b981; }
-.action-btn { background: #f1f5f9; color: #475569; border: none; padding: 6px 16px; border-radius: 12px; font-size: 13px; cursor: pointer; }
+
+/* ✨ 状态样式区分 */
+.item-status { margin: 0; font-size: 12px; transition: color 0.3s; }
+.status-online { color: #10b981; font-weight: bold; } /* 绿色 */
+.status-offline { color: #94a3b8; } /* 灰色 */
+
+.item-actions { display: flex; gap: 8px; }
+.chat-btn { background: #e0f2fe; color: #0369a1; border: none; padding: 6px 12px; border-radius: 12px; font-size: 13px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+.chat-btn:hover { background: #bae6fd; }
+.action-btn { background: #f1f5f9; color: #475569; border: none; padding: 6px 12px; border-radius: 12px; font-size: 13px; cursor: pointer; font-weight: 600; }
+
 .empty-hint { text-align: center; color: #94a3b8; padding: 40px 20px; font-size: 14px; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

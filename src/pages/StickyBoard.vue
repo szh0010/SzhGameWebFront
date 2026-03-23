@@ -29,10 +29,21 @@
 
     <div class="notes-container">
       <div v-if="notes.length === 0" class="no-data">暂时还没有便签，快来发布第一条吧！</div>
+      
       <div v-for="note in notes" :key="note.id" class="note-card">
+        <button 
+          v-if="note.user === currentUsername" 
+          class="delete-note-btn" 
+          @click="handleDelete(note.id)"
+          title="删除这条便签"
+        >
+          ×
+        </button>
+
         <h3>{{ note.title }}</h3>
         <img v-if="note.image" :src="formatImageUrl(note.image)" class="note-image" />
         <p>{{ note.content }}</p>
+        
         <div class="note-footer">
           <span>👤 {{ note.user }}</span>
           <span>📅 {{ formatDate(note.created_at) }}</span>
@@ -46,7 +57,6 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
-// 配置后端基地址，方便统一修改
 const API_BASE_URL = '';
 
 const notes = ref([]);
@@ -55,6 +65,9 @@ const selectedFile = ref(null);
 const imagePreview = ref(null);
 const loading = ref(false);
 const fileInput = ref(null);
+
+// ✨ 获取当前登录用户名，用于权限判断
+const currentUsername = ref(localStorage.getItem('username') || '');
 
 // 获取 Cookie
 const getCookie = (name) => {
@@ -81,13 +94,32 @@ const formatImageUrl = (url) => {
 // 获取便签列表
 const fetchNotes = async () => {
   try {
-    // 确保 URL 以斜杠结尾
     const res = await axios.get(`${API_BASE_URL}/api/board/`, {
       withCredentials: true 
     });
     notes.value = res.data;
   } catch (err) {
     console.error("加载便签失败:", err.response?.data || err.message);
+  }
+};
+
+// ✨ 新增：处理删除便签
+const handleDelete = async (noteId) => {
+  if (!confirm("确定要删除这条便签吗？")) return;
+
+  try {
+    const csrfToken = getCookie('csrftoken');
+    await axios.delete(`${API_BASE_URL}/api/board/${noteId}/`, {
+      headers: { 'X-CSRFToken': csrfToken },
+      withCredentials: true
+    });
+    
+    // 成功后，无需刷新页面，直接从本地数组移除，增强体验
+    notes.value = notes.value.filter(n => n.id !== noteId);
+  } catch (err) {
+    console.error("删除失败:", err.response);
+    const detail = err.response?.data?.error || "你没有权限删除此便签或网络错误";
+    alert("删除失败：" + detail);
   }
 };
 
@@ -119,10 +151,6 @@ const submitNote = async () => {
 
   try {
     const csrfToken = getCookie('csrftoken');
-    // 调试：如果这里打印 null，说明你还没在 127.0.0.1 下登录
-    console.log("发送请求时的 CSRF Token:", csrfToken);
-
-    // 关键：URL 必须以斜杠 / 结尾，否则 Django 可能会重定向导致 405
     await axios.post(`${API_BASE_URL}/api/board/`, formData, {
       headers: { 
         'Content-Type': 'multipart/form-data',
@@ -135,9 +163,8 @@ const submitNote = async () => {
     removeImage();
     fetchNotes();
   } catch (err) {
-    console.error("POST 请求详细错误:", err.response);
-    const detail = err.response?.data?.detail || "请检查登录状态或后端路由配置";
-    alert("发布失败：" + detail);
+    console.error("POST 请求错误:", err.response);
+    alert("发布失败：请检查登录状态");
   } finally {
     loading.value = false;
   }
@@ -155,11 +182,50 @@ onMounted(fetchNotes);
 .sticky-board { padding: 20px; max-width: 800px; margin: 0 auto; }
 .header-box { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .btn-back { padding: 5px 15px; background: #8c8c8c; color: white; border: none; border-radius: 4px; cursor: pointer; }
+
+/* 发布区域 */
 .publish-section { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; }
 .input-title, .input-content { width: 100%; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
 .input-content { min-height: 100px; resize: vertical; }
-.file-group { margin-bottom: 15px; }
-.note-card { background: #fffbe6; border: 1px solid #ffe58f; padding: 15px; margin-bottom: 20px; border-radius: 4px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
+
+/* 便签卡片 */
+.note-card { 
+  position: relative; /* 重要：为删除按钮提供定位参考 */
+  background: #fffbe6; 
+  border: 1px solid #ffe58f; 
+  padding: 15px; 
+  margin-bottom: 20px; 
+  border-radius: 4px; 
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.1); 
+  transition: transform 0.2s;
+}
+.note-card:hover { transform: translateY(-2px); }
+
+/* ✨ 新增：右上角删除按钮样式 */
+.delete-note-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 77, 79, 0.1);
+  color: #ff4d4f;
+  border: none;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 5;
+}
+.delete-note-btn:hover {
+  background: #ff4d4f;
+  color: white;
+  transform: rotate(90deg);
+}
+
 .note-image { max-width: 100%; height: auto; border-radius: 4px; margin: 10px 0; display: block; border: 1px solid #eee; }
 .preview-box { position: relative; display: inline-block; margin-top: 10px; border: 1px dashed #ccc; padding: 5px; }
 .preview-box img { max-width: 200px; max-height: 200px; border-radius: 4px; }

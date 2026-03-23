@@ -6,8 +6,9 @@ import RoomSelectionPage from '../pages/RoomSelectionPage.vue'
 import GamePage from '../pages/GamePage.vue'
 import StickyBoard from '../pages/StickyBoard.vue'
 import ProfilePage from '../pages/ProfilePage.vue'
-// 1. 导入新创建的好友页面
 import FriendsPage from '../pages/FriendsPage.vue'
+// 1. 导入新创建的聊天页面
+import ChatPage from '../pages/ChatPage.vue'
 
 const routes = [
   {
@@ -50,11 +51,18 @@ const routes = [
     component: ProfilePage,
     meta: { requiresAuth: true }
   },
-  // 2. 新增：好友中心路由
   {
     path: '/friends',
     name: 'Friends',
     component: FriendsPage,
+    meta: { requiresAuth: true }
+  },
+  // 2. 新增：私聊房间路由
+  // :friendId 是一个动态参数，代表好友的唯一 UID
+  {
+    path: '/chat/:friendId',
+    name: 'Chat',
+    component: ChatPage,
     meta: { requiresAuth: true }
   },
   {
@@ -70,6 +78,7 @@ const router = createRouter({
 
 /**
  * 导航守卫
+ * 确保未登录用户无法访问带 meta.requiresAuth 的页面
  */
 router.beforeEach((to, from, next) => {
   const isLoggedIn = localStorage.getItem('username')
