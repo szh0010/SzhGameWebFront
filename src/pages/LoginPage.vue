@@ -32,27 +32,39 @@ const handleLogin = async () => {
 
   loading.value = true
   try {
-    // 关键：开启凭据 (withCredentials) 以确保 Session 正常工作
+    // 开启凭据 (withCredentials) 以确保 Session/Cookie 正常工作
     const res = await axios.post(`${API_BASE_URL}/api/login/`, form, {
       withCredentials: true 
     })
     
     if (res.data.status === 'success') {
+      // --- ✨ 全自动化存储逻辑启动 ---
+      
       // 1. 持久化用户名
       localStorage.setItem('username', res.data.user)
       
-      // 2. 核心修改：将后端返回的 5 位靓号 ID (如 10001) 存入本地
+      // 2. 持久化 5 位靓号 ID (如 10001)
       if (res.data.id) {
         localStorage.setItem('user_id', res.data.id)
       }
 
+      // 3. ✨ 核心修改：自动化存储 Token
+      // 只要后端返回了 token，我们就把它存入本地保险柜
+      // 这样 socket.js 就能在跳转后自动拿到它，实现“免手动”连接
+      if (res.data.token) {
+        localStorage.setItem('token', res.data.token)
+        console.log('[Login] ✅ Token 已自动存入保险柜')
+      }
+
       alert('欢迎回来，' + res.data.user)
+      
+      // 跳转到游戏选择页，此时 Socket 链接会自动建立
       router.push('/game-selection')
+      
     } else {
       alert('登录失败：' + (res.data.message || '未知错误'))
     }
   } catch (err) {
-    // 捕获 401 (密码错误) 或其他后端返回的错误
     const msg = err.response?.data?.message || err.response?.data?.error || '网络连接失败，请检查后端服务'
     alert('登录失败：' + msg)
     console.error('Login error detail:', err.response)

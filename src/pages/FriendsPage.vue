@@ -9,6 +9,8 @@
       <div class="search-section">
         <div class="search-bar">
           <input 
+            id="friend-search-input"
+            name="friend-id-search"
             v-model="searchId" 
             type="text" 
             placeholder="输入数字 ID 找人..." 
@@ -46,11 +48,19 @@
       <div class="list-content">
         <div v-if="activeTab === 'list'" class="list-wrapper">
           <div v-for="friend in friendList" :key="friend.uid" class="list-item">
-            <img :src="formatUrl(friend.avatar)" class="item-avatar" />
+            <div class="avatar-wrapper">
+              <img :src="formatUrl(friend.avatar)" class="item-avatar" />
+              <transition name="scale">
+                <span v-if="unreadCounts[Number(friend.uid)] > 0" class="msg-badge">
+                  {{ unreadCounts[Number(friend.uid)] > 99 ? '99+' : unreadCounts[Number(friend.uid)] }}
+                </span>
+              </transition>
+            </div>
+
             <div class="item-info">
               <p class="item-name">{{ friend.nickname || friend.username }}</p>
-              <p :class="['item-status', friend.is_online ? 'status-online' : 'status-offline']">
-                {{ friend.is_online ? '在线' : '离线' }}
+              <p :class="['item-status', getFriendStatus(friend.uid) ? 'status-online' : 'status-offline']">
+                {{ getFriendStatus(friend.uid) ? '● 在线' : '○ 离线' }}
               </p>
             </div>
             <div class="item-actions">
@@ -80,11 +90,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+// ✨ 引入全局 Socket 状态和方法
+import { socketStore, useSocket } from '../store/socket'; 
 
 const router = useRouter();
+const { connect } = useSocket();
 const API_BASE = '';
 const myUid = ref(localStorage.getItem('user_id') || '----');
 const searchId = ref('');
@@ -96,6 +109,18 @@ const friendList = ref([]);
 const requestList = ref([]);
 const pendingCount = ref(0);
 
+/**
+ * ✨ 获取未读消息计数 (响应式)
+ */
+const unreadCounts = computed(() => socketStore.unreadCounts || {});
+
+/**
+ * ✨ 获取好友实时状态
+ */
+const getFriendStatus = (uid) => {
+  return socketStore.isFriendOnline[Number(uid)] || false;
+};
+
 // --- 1. 数据初始化加载 ---
 const loadSocialData = async () => {
   try {
@@ -105,14 +130,26 @@ const loadSocialData = async () => {
     ]);
     
     friendList.value = friendsRes.data;
+    
+    // 同步 API 在线状态到全局 Socket Store
+    friendsRes.data.forEach(friend => {
+      socketStore.isFriendOnline[Number(friend.uid)] = friend.is_online;
+    });
+
     requestList.value = requestsRes.data;
     pendingCount.value = requestsRes.data.length;
+
+    // ✨ 核心逻辑：同步待处理申请数到全局 Store，以便底部导航栏显示红点
+    socketStore.pendingRequestsCount = requestsRes.data.length;
+    
   } catch (err) {
     console.error("加载数据失败:", err);
   }
 };
 
 onMounted(() => {
+  // 确保连接已建立
+  connect();
   loadSocialData();
 });
 
@@ -137,13 +174,14 @@ const handleSearch = async () => {
       params: { uid: cleanId },
       withCredentials: true
     });
-    if (res.data && (res.data.uid || res.data.id)) {
-      searchResult.value = res.data;
+    const data = Array.isArray(res.data) ? res.data[0] : res.data;
+    if (data && (data.uid || data.id)) {
+      searchResult.value = data;
     } else {
       alert("🔍 未找到该用户");
     }
   } catch (err) {
-    alert("🔍 未找到该用户");
+    alert(`🔍 ${err.response?.data?.error || "未找到该用户"}`);
   } finally {
     isSearching.value = false;
   }
@@ -152,7 +190,7 @@ const handleSearch = async () => {
 const sendFriendRequest = async (uid) => {
   try {
     const res = await axios.post(`${API_BASE}/api/board/profile/add_friend/`, 
-      { to_uid: uid },
+      { to_uid: Number(uid) },
       { withCredentials: true }
     );
     alert(`✅ ${res.data.message || '申请已发送'}`);
@@ -171,6 +209,7 @@ const handleRequest = async (reqId, action) => {
       { withCredentials: true }
     );
     alert(action === 'accept' ? "🤝 你们已经是好友啦！" : "🗑️ 已忽略");
+    // 重新加载数据会自动更新全局 pendingRequestsCount
     loadSocialData();
   } catch (err) {
     alert("⚠️ 操作失败，请重试");
@@ -184,40 +223,59 @@ const formatUrl = (url) => {
 </script>
 
 <style scoped>
+/* 样式部分保持不变 */
 .friends-container { padding: 20px; display: flex; justify-content: center; background: #f8fafc; min-height: calc(100vh - 60px); }
 .friends-card { background: white; width: 100%; max-width: 480px; border-radius: 24px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
 .friends-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .friends-header h2 { margin: 0; font-size: 20px; color: #333; }
 .my-id-badge { background: #eef2ff; color: #4f46e5; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+
+.avatar-wrapper { position: relative; display: inline-block; flex-shrink: 0; }
+.item-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.msg-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #ff4d4f;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  padding: 0 4px;
+  box-shadow: 0 2px 4px rgba(255, 77, 79, 0.3);
+}
+
 .search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
 .search-bar input { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; outline: none; transition: 0.3s; }
 .search-bar input:focus { border-color: #42b983; box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.1); }
 .search-bar button { background: #42b983; color: white; border: none; padding: 0 20px; border-radius: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-.search-result-card { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.user-brief { display: flex; align-items: center; gap: 12px; }
-.mini-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: white; }
-.text-info .name { margin: 0; font-weight: bold; font-size: 15px; }
-.text-info .id { margin: 0; font-size: 12px; color: #666; }
-.add-btn { background: #42b983; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: bold; }
+
 .tabs { display: flex; border-bottom: 1px solid #f1f5f9; margin-bottom: 16px; }
 .tab { flex: 1; text-align: center; padding: 12px; cursor: pointer; color: #94a3b8; font-weight: bold; position: relative; }
 .tab.active { color: #42b983; }
 .tab.active::after { content: ''; position: absolute; bottom: 0; left: 25%; right: 25%; height: 3px; background: #42b983; border-radius: 3px; }
 .badge { background: #ef4444; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 4px; vertical-align: middle; }
+
 .list-item { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid #f8fafc; }
-.item-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
 .item-info { flex: 1; margin-left: 14px; }
 .item-name { margin: 0; font-weight: 600; font-size: 15px; }
-
-/* ✨ 状态样式区分 */
-.item-status { margin: 0; font-size: 12px; transition: color 0.3s; }
-.status-online { color: #10b981; font-weight: bold; } /* 绿色 */
-.status-offline { color: #94a3b8; } /* 灰色 */
+.item-status { margin: 0; font-size: 11px; margin-top: 4px; }
+.status-online { color: #10b981; font-weight: bold; }
+.status-offline { color: #94a3b8; }
 
 .item-actions { display: flex; gap: 8px; }
 .chat-btn { background: #e0f2fe; color: #0369a1; border: none; padding: 6px 12px; border-radius: 12px; font-size: 13px; cursor: pointer; font-weight: 600; transition: 0.2s; }
 .chat-btn:hover { background: #bae6fd; }
 .action-btn { background: #f1f5f9; color: #475569; border: none; padding: 6px 12px; border-radius: 12px; font-size: 13px; cursor: pointer; font-weight: 600; }
+
+.scale-enter-active, .scale-leave-active { transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s; }
+.scale-enter-from, .scale-leave-to { transform: scale(0); opacity: 0; }
 
 .empty-hint { text-align: center; color: #94a3b8; padding: 40px 20px; font-size: 14px; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
