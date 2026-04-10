@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <div :class="['content-wrapper', { 'padding-bottom': hasNav }]">
+    <div :class="['content-wrapper', { 'has-nav-padding': showNavPadding }]">
       <RouterView />
     </div>
 
@@ -11,10 +11,10 @@
         <div class="invite-modal">
           <div class="invite-icon">⚔️</div>
           <h3>对战请求</h3>
-          <p>你的好友 <b>{{ inviteData.sender_name }}</b> 向你发起五子棋挑战！</p>
+          <p>你的好友 <b>{{ inviteData.sender_name }}</b> 向你发起挑战！</p>
           <div class="modal-ops">
             <button class="accept-btn" @click="confirmGame(true)">应战</button>
-            <button class="reject-btn" @click="confirmGame(false)">算了吧</button>
+            <button class="reject-btn" @click="confirmGame(false)">拒绝</button>
           </div>
         </div>
       </div>
@@ -25,30 +25,29 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BottomNav from './components/BottomNav.vue'; // ✨ 确保文件名与你创建的一致
+import BottomNav from './components/BottomNav.vue';
 import { useSocket } from './store/socket'; 
 
 const route = useRoute();
 const router = useRouter();
 const { connect, send } = useSocket();
 
-// --- 对战邀请相关状态 ---
 const showInviteModal = ref(false);
 const inviteData = ref({});
 
-/**
- * 1. 判断当前页面是否显示导航栏
- * 只有登录和注册页隐藏，其他社交/游戏页面均显示
- */
+// 1. 是否显示 BottomNav 组件
 const hasNav = computed(() => {
-  const hideOnPages = ['login', 'register'];
-  // 兼容根据 name 或 path 判断
+  // 这里的逻辑要跟 BottomNav.vue 保持高度一致
+  const hideOnPages = ['login', 'register', 'sticky-board'];
   return route.name && !hideOnPages.includes(route.name);
 });
 
-/**
- * 2. 处理对战响应（发送指令到后端）
- */
+// 2. 是否需要为导航栏留出底部占位
+const showNavPadding = computed(() => {
+  // 只有显示导航栏，且不是全屏沉浸页面（如游戏页）时，才需要 padding
+  return hasNav.value && route.name !== 'game';
+});
+
 const confirmGame = (isAccept) => {
   if (isAccept) {
     send({
@@ -67,48 +66,31 @@ const confirmGame = (isAccept) => {
   showInviteModal.value = false;
 };
 
-/**
- * 3. 全局 Socket 初始化逻辑
- */
 const initGlobalSocket = () => {
   const token = localStorage.getItem('token');
   if (token) {
-    console.log("[App.vue] 检测到 Token，正在激活全局通讯系统...");
     connect();
   }
 };
 
 onMounted(() => {
-  // 初始启动
   initGlobalSocket();
 
-  // ✨ 监听：收到游戏挑战
   window.addEventListener('game-request-received', (e) => {
     inviteData.value = e.detail;
     showInviteModal.value = true;
-    console.log("[App.vue] 收到挑战通知:", e.detail);
   });
 
-  // ✨ 监听：挑战被接受，双方同步跳转进房间
   window.addEventListener('game-start-redirect', (e) => {
     const { roomId, gameId } = e.detail;
     showInviteModal.value = false;
-    console.log(`[App.vue] 正在传送至对局室: ${roomId}`);
-    
     router.push({
       name: 'game', 
-      params: { 
-        gameId: gameId || 'gomoku', 
-        roomId: String(roomId) 
-      }
+      params: { gameId: gameId || 'gomoku', roomId: String(roomId) }
     });
   });
 });
 
-/**
- * 4. 监听登录状态变化
- * 解决用户在登录页登录成功后，App.vue 需要立即建立连接的问题
- */
 watch(() => route.name, (newName, oldName) => {
   if (oldName === 'login' && newName !== 'login') {
     initGlobalSocket();
@@ -117,124 +99,89 @@ watch(() => route.name, (newName, oldName) => {
 </script>
 
 <style>
-/* --- 全局样式变量 --- */
+/* --- 全局样式修正 --- */
 :root {
   --primary-color: #42b983;
-  --nav-height: 60px;
+  --nav-height: 65px;
 }
 
 body { 
   margin: 0; 
   padding: 0; 
-  overscroll-behavior-y: none; /* 禁用移动端下拉刷新 */
+  /* 解决移动端拉动时的橡皮筋效果，让页面更像原生App */
+  overscroll-behavior-y: none; 
   background-color: #f5f7fa;
+  width: 100%;
+  height: 100%;
 }
 
 .app-container {
-  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   min-height: 100vh;
+  width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* 动态内边距：防止内容被底部导航栏挡住 */
+/* 核心修正：取消 500px 限制，改为 100% 宽度 */
 .content-wrapper {
   flex: 1;
   width: 100%;
-  max-width: 500px; /* 模拟移动端最佳宽度 */
-  margin: 0 auto;
-  box-sizing: border-box;
+  position: relative;
+  /* 移除 margin: 0 auto 和 max-width */
 }
 
-.content-wrapper.padding-bottom {
-  padding-bottom: calc(var(--nav-height) + 10px);
+/* 只有普通社交页面才需要底部留白，全屏功能页不需要 */
+.has-nav-padding {
+  padding-bottom: var(--nav-height);
 }
 
-/* --- ⚔️ 对战邀请弹窗样式 --- */
+/* --- ⚔️ 对战邀请弹窗样式优化 --- */
 .invite-overlay {
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(5px);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 99999; /* 确保在最最顶层 */
 }
 
 .invite-modal {
   background: white;
-  width: 280px;
-  padding: 30px;
-  border-radius: 28px;
+  width: 85%;
+  max-width: 320px;
+  padding: 25px;
+  border-radius: 24px;
   text-align: center;
-  box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
 }
 
 .invite-icon {
-  font-size: 56px;
-  margin-bottom: 15px;
-  display: inline-block;
-  animation: sword-shake 1.2s infinite ease-in-out;
+  font-size: 50px;
+  margin-bottom: 10px;
+  animation: sword-shake 1s infinite alternate ease-in-out;
 }
 
 @keyframes sword-shake {
-  0% { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(-10deg) scale(1.1); }
-  50% { transform: rotate(10deg) scale(1.1); }
-  100% { transform: rotate(0deg) scale(1); }
+  from { transform: rotate(-5deg); }
+  to { transform: rotate(15deg); }
 }
 
-.invite-modal h3 { 
-  margin: 0 0 12px; 
-  color: #2c3e50; 
-  font-size: 20px;
-}
-
-.invite-modal p { 
-  color: #64748b; 
-  font-size: 14px; 
-  line-height: 1.6;
-}
-
-.invite-modal b {
-  color: #42b983;
-}
-
-.modal-ops {
-  display: flex;
-  gap: 12px;
-  margin-top: 25px;
-}
+.invite-modal h3 { margin: 10px 0; color: #1e293b; }
+.invite-modal p { color: #475569; font-size: 15px; margin-bottom: 20px; }
+.modal-ops { display: flex; gap: 10px; }
 
 .accept-btn {
-  flex: 1.2;
-  background: #42b983;
-  color: white;
-  border: none;
-  padding: 14px;
-  border-radius: 14px;
-  font-weight: bold;
-  font-size: 15px;
-  cursor: pointer;
-  transition: transform 0.2s;
+  flex: 1.5; background: #42b983; color: white; border: none;
+  padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer;
 }
-
-.accept-btn:active { transform: scale(0.95); }
-
 .reject-btn {
-  flex: 1;
-  background: #f1f5f9;
-  color: #64748b;
-  border: none;
-  padding: 14px;
-  border-radius: 14px;
-  font-weight: bold;
-  font-size: 15px;
-  cursor: pointer;
+  flex: 1; background: #f1f5f9; color: #64748b; border: none;
+  padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer;
 }
 
-/* 基础过渡动画 */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

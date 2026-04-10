@@ -3,8 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SzhGame-V3</title> 
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <title>SzhGame-V3</title>
+
+    <style>
+      /* 2. 在地基层面解决“左右晃动”的顽疾 */
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100vh;
+        /* 核心：禁止横向滚动。只要这行在，页面就不会左右漂移 */
+        overflow-x: hidden; 
+        /* 防止 iOS 浏览器自动调整字体大小 */
+        -webkit-text-size-adjust: 100%;
+        /* 提高移动端点击响应速度 */
+        touch-action: manipulation;
+        background-color: #f4f6f9; /* 给个舒服的浅灰色底 */
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+
+      /* 3. 盒模型重置：这是前端开发的金科玉律 */
+      * {
+        box-sizing: border-box;
+      }
+
+      /* 针对 App 根容器的优化 */
+      #app {
+        width: 100%;
+        min-height: 100vh;
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>

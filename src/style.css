@@ -1,11 +1,19 @@
+/* 1. 基础重置：消除所有默认间距，确保边框不撑开宽度 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light dark;
+  /* 默认深色背景，防止白屏闪烁 */
+  background-color: #1a1a1a; 
   color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -13,6 +21,24 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* 2. 彻底移除居中和宽度限制，让容器占满全屏 */
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  /* 禁止外层滚动，滚动交给组件内部 */
+  overflow: hidden; 
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  /* 移除之前的 max-width, margin: 0 auto 和 padding */
+  text-align: center;
+}
+
+/* 3. 基础组件样式优化 */
 a {
   font-weight: 500;
   color: #646cff;
@@ -22,17 +48,10 @@ a:hover {
   color: #535bf2;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
 h1 {
-  font-size: 3.2em;
+  font-size: 2.5em;
   line-height: 1.1;
+  margin: 0.5em 0;
 }
 
 button {
@@ -42,38 +61,30 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #2b2b2b;
+  color: white;
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: all 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
+  background-color: #333;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
-.card {
-  padding: 2em;
-}
-
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
+/* 4. 移动端适配：浅色模式 */
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
     background-color: #ffffff;
   }
-  a:hover {
-    color: #747bff;
-  }
   button {
-    background-color: #f9f9f9;
+    background-color: #f0f0f0;
+    color: #213547;
   }
 }
