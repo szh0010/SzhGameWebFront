@@ -27,9 +27,8 @@ const route = useRoute();
 
 // 判断是否显示导航栏
 const showNav = computed(() => {
-  // 重点：在这里加上你的毛毡板路由名称（假设是 'sticky-board'）
-  // 这样进入毛毡板时，导航栏会自动消失，腾出全屏空间
-  const hideOnPages = ['login', 'register', 'sticky-board']; 
+  // ✨ 增加 'chat'，进入聊天室时自动隐藏导航栏，防止挡住输入框
+  const hideOnPages = ['login', 'register', 'sticky-board', 'chat']; 
   
   return route.name && !hideOnPages.includes(route.name);
 });
@@ -42,24 +41,18 @@ const showNav = computed(() => {
   left: 0;
   right: 0;
   height: 65px;
-  /* 玻璃拟态效果：半透明背景 + 模糊 */
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  
   display: flex;
   justify-content: space-around;
   align-items: center;
-  
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.05);
   z-index: 1000;
-  
-  /* 适配 iOS 底部安全区（刘海屏手机必备） */
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* 适配深色模式 */
 @media (prefers-color-scheme: dark) {
   .bottom-nav {
     background: rgba(30, 30, 30, 0.8);
@@ -78,67 +71,26 @@ const showNav = computed(() => {
   position: relative;
 }
 
-.nav-icon {
-  font-size: 24px;
-  margin-bottom: 2px;
-}
+.nav-icon { font-size: 24px; margin-bottom: 2px; }
+.nav-label { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
 
-.nav-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
-
-/* 激活状态的样式：更有设计感 */
-.router-link-active {
-  color: #42b983;
-}
-
-.router-link-active .nav-icon {
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 5px rgba(66, 185, 131, 0.3));
-}
-
-/* 激活时底部的小指示条 */
+.router-link-active { color: #42b983; }
+.router-link-active .nav-icon { transform: scale(1.1); filter: drop-shadow(0 0 5px rgba(66, 185, 131, 0.3)); }
 .router-link-active::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  width: 4px;
-  height: 4px;
-  background: #42b983;
-  border-radius: 50%;
+  content: ''; position: absolute; bottom: -4px; width: 4px; height: 4px; background: #42b983; border-radius: 50%;
 }
 
-/* PC端自适应：改为悬浮胶囊样式 */
 @media (min-width: 768px) {
   .bottom-nav {
-    width: auto;
-    min-width: 320px;
-    max-width: 450px;
-    left: 50%;
-    bottom: 20px; /* 悬浮效果 */
-    transform: translateX(-50%);
-    border-radius: 30px; /* 圆角胶囊 */
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    height: 60px;
-    padding: 0 20px;
+    width: auto; min-width: 320px; max-width: 450px; left: 50%; bottom: 20px;
+    transform: translateX(-50%); border-radius: 30px; border: 1px solid rgba(0, 0, 0, 0.1);
+    height: 60px; padding: 0 20px;
   }
 }
 
-/* 简单的进入退出动画 */
-.fade-slide-enter-active, .fade-slide-leave-active {
-  transition: all 0.3s ease;
-}
-.fade-slide-enter-from, .fade-slide-leave-to {
-  transform: translateY(100%);
-  opacity: 0;
-}
-/* PC端动画特殊处理 */
+.fade-slide-enter-active, .fade-slide-leave-active { transition: all 0.3s ease; }
+.fade-slide-enter-from, .fade-slide-leave-to { transform: translateY(100%); opacity: 0; }
 @media (min-width: 768px) {
-  .fade-slide-enter-from, .fade-slide-leave-to {
-    transform: translate(-50%, 100%);
-    opacity: 0;
-  }
+  .fade-slide-enter-from, .fade-slide-leave-to { transform: translate(-50%, 100%); opacity: 0; }
 }
 </style>

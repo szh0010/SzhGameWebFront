@@ -35,16 +35,23 @@ const { connect, send } = useSocket();
 const showInviteModal = ref(false);
 const inviteData = ref({});
 
-// 1. 是否显示 BottomNav 组件
+/**
+ * 1. 是否显示 BottomNav 组件
+ * 重点修复：增加了 'chat' 页面。进入聊天室时隐藏导航栏，腾出底部空间给输入框。
+ */
 const hasNav = computed(() => {
-  // 这里的逻辑要跟 BottomNav.vue 保持高度一致
-  const hideOnPages = ['login', 'register', 'sticky-board'];
+  // 这里的名单必须跟 BottomNav.vue 里的逻辑完全同步
+  // 请确认你 router/index.js 中聊天页面的 name 确实叫 'chat'
+  const hideOnPages = ['login', 'register', 'sticky-board', 'chat'];
   return route.name && !hideOnPages.includes(route.name);
 });
 
-// 2. 是否需要为导航栏留出底部占位
+/**
+ * 2. 是否需要为导航栏留出底部占位
+ * 当 hasNav 为 false 时，padding 会自动变为 0，解决遮挡问题
+ */
 const showNavPadding = computed(() => {
-  // 只有显示导航栏，且不是全屏沉浸页面（如游戏页）时，才需要 padding
+  // 只有当显示导航栏，且不是对局页面时才需要底部填充
   return hasNav.value && route.name !== 'game';
 });
 
@@ -108,11 +115,12 @@ watch(() => route.name, (newName, oldName) => {
 body { 
   margin: 0; 
   padding: 0; 
-  /* 解决移动端拉动时的橡皮筋效果，让页面更像原生App */
   overscroll-behavior-y: none; 
   background-color: #f5f7fa;
   width: 100%;
   height: 100%;
+  /* 修复：确保 body 字体颜色在手机端有默认值，防止某些系统强制变色 */
+  color: #2c3e50;
 }
 
 .app-container {
@@ -123,20 +131,19 @@ body {
   flex-direction: column;
 }
 
-/* 核心修正：取消 500px 限制，改为 100% 宽度 */
 .content-wrapper {
   flex: 1;
   width: 100%;
   position: relative;
-  /* 移除 margin: 0 auto 和 max-width */
+  /* 确保这里没有任何 max-width 限制，实现真正的全屏 */
 }
 
-/* 只有普通社交页面才需要底部留白，全屏功能页不需要 */
+/* 动态内边距：当 hasNav 为 true 时，底部会留出 65px 防止内容被挡 */
 .has-nav-padding {
   padding-bottom: var(--nav-height);
 }
 
-/* --- ⚔️ 对战邀请弹窗样式优化 --- */
+/* --- ⚔️ 对战邀请弹窗样式 --- */
 .invite-overlay {
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
@@ -145,7 +152,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 99999; /* 确保在最最顶层 */
+  z-index: 99999;
 }
 
 .invite-modal {

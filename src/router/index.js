@@ -7,7 +7,6 @@ import GamePage from '../pages/GamePage.vue'
 import StickyBoard from '../pages/StickyBoard.vue'
 import ProfilePage from '../pages/ProfilePage.vue'
 import FriendsPage from '../pages/FriendsPage.vue'
-// 1. 导入新创建的聊天页面
 import ChatPage from '../pages/ChatPage.vue'
 
 const routes = [
@@ -41,27 +40,29 @@ const routes = [
   },
   {
     path: '/board',
-    name: 'StickyBoard',
+    // ✨ 修改：统一使用小写连字符，匹配 App.vue 中的逻辑
+    name: 'sticky-board', 
     component: StickyBoard,
     meta: { requiresAuth: true }
   },
   {
     path: '/profile',
-    name: 'Profile',
+    // ✨ 修改：建议统一规范
+    name: 'profile', 
     component: ProfilePage,
     meta: { requiresAuth: true }
   },
   {
     path: '/friends',
-    name: 'Friends',
+    // ✨ 修改：建议统一规范
+    name: 'friends', 
     component: FriendsPage,
     meta: { requiresAuth: true }
   },
-  // 2. 新增：私聊房间路由
-  // :friendId 是一个动态参数，代表好友的唯一 UID
   {
     path: '/chat/:friendId',
-    name: 'Chat',
+    // ✨ 修改：统一使用小写，确保 BottomNav 能够正确隐藏
+    name: 'chat', 
     component: ChatPage,
     meta: { requiresAuth: true }
   },
@@ -78,9 +79,9 @@ const router = createRouter({
 
 /**
  * 导航守卫
- * 确保未登录用户无法访问带 meta.requiresAuth 的页面
  */
 router.beforeEach((to, from, next) => {
+  // 小提示：实际项目中用 token 判断会比 username 更安全
   const isLoggedIn = localStorage.getItem('username')
 
   if (to.meta.requiresAuth && !isLoggedIn) {

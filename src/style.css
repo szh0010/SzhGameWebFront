@@ -1,4 +1,4 @@
-/* 1. 基础重置：消除所有默认间距，确保边框不撑开宽度 */
+/* 1. 基础重置：确保所有元素在不同设备下表现一致 */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -6,14 +6,16 @@
 }
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  /* 默认深色背景，防止白屏闪烁 */
-  background-color: #1a1a1a; 
-  color: rgba(255, 255, 255, 0.87);
+  /* ✨ 核心修正：默认使用深蓝色系的字，确保在浅色背景上清晰可见 */
+  color: #1e293b; 
+  background-color: #f8fafc; /* 默认浅色背景 */
+
+  /* 告诉系统我们手动接管颜色，不要胡乱反转 */
+  color-scheme: light; 
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -21,70 +23,81 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 2. 彻底移除居中和宽度限制，让容器占满全屏 */
-html, body {
+/* 2. 彻底填满全屏，禁止根级滚动 */
+html, body, #app {
   width: 100%;
   height: 100%;
   margin: 0;
   padding: 0;
-  /* 禁止外层滚动，滚动交给组件内部 */
   overflow: hidden; 
 }
 
 #app {
-  width: 100%;
-  height: 100%;
-  /* 移除之前的 max-width, margin: 0 auto 和 padding */
+  /* 确保文字始终有保底颜色 */
+  color: #1e293b;
   text-align: center;
 }
 
 /* 3. 基础组件样式优化 */
 a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  font-weight: 600;
+  color: #3b82f6;
+  text-decoration: none;
+  transition: color 0.2s;
 }
 a:hover {
-  color: #535bf2;
+  color: #2563eb;
 }
 
 h1 {
-  font-size: 2.5em;
+  font-size: 2.2em;
   line-height: 1.1;
-  margin: 0.5em 0;
+  color: #0f172a;
 }
 
+/* 按钮：增加明显的视觉边界 */
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #2b2b2b;
-  color: white;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.1);
+  padding: 0.6em 1.4em;
+  font-size: 14px;
+  font-weight: 600;
+  background-color: #ffffff;
+  color: #1e293b;
   cursor: pointer;
-  transition: all 0.25s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 button:hover {
-  border-color: #646cff;
-  background-color: #333;
+  border-color: #3b82f6;
+  background-color: #f1f5f9;
+  transform: translateY(-1px);
 }
 
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+button:active {
+  transform: translateY(0);
 }
 
-/* 4. 移动端适配：浅色模式 */
-@media (prefers-color-scheme: light) {
+/* 4. 手机端/深色模式适配逻辑 */
+/* 如果用户手机真的开启了深色模式，我们微调 UI，但绝不让文字变白后在浅底上隐身 */
+@media (prefers-color-scheme: dark) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    /* 深色模式下，背景调暗，文字调亮 */
+    background-color: #0f172a;
+    color: #f1f5f9;
   }
+  
+  h1 { color: #ffffff; }
+  
   button {
-    background-color: #f0f0f0;
-    color: #213547;
+    background-color: #1e293b;
+    color: #f1f5f9;
+    border-color: rgba(255,255,255,0.1);
   }
+}
+
+/* 强制：确保所有卡片内部文字不丢失可见度 */
+.card, .profile-info, .game-item {
+  color: #1e293b !important;
 }

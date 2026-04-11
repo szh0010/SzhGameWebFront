@@ -13,7 +13,7 @@
     <div class="canvas-area">
       <div 
         class="felt-canvas" 
-        @click="handleCanvasClick"
+        @click="handleCanvasClick" 
         @dragover.prevent 
         @drop="onBoardDrop"
       >
@@ -27,11 +27,9 @@
             'first-note-anchor': note.isFirst,
             'is-tucked-away': isNoteCollapsed(note) 
           }"
-          :draggable="note.user === currentUsername && !isNoteCollapsed(note)"
-          @dragstart="onNoteDragStart($event, note)"
+          :style="getDynamicNoteStyle(note)"
           @mousedown="bringToFront(note)"
           @click.stop 
-          :style="getDynamicNoteStyle(note)"
         >
           <div class="pushpin-red"></div>
           
@@ -55,8 +53,13 @@
           <div class="s-footer">
             <div class="f-left">
               <span class="f-user">👤 {{ note.user }}</span>
-              <button class="f-like" :class="{ 'is-liked': note.is_liked }" @click.stop="handleToggleLike(note)">
-                {{ note.is_liked ? '❤️' : '🤍' }} {{ note.likes_count || 0 }}
+              <button 
+                class="f-like" 
+                :class="{ 'is-liked': note.is_liked }" 
+                @click.stop="handleToggleLike(note)"
+              >
+                <span class="heart-icon">{{ note.is_liked ? '❤️' : '🤍' }}</span>
+                <span class="like-count">{{ note.likes_count || 0 }}</span>
               </button>
             </div>
             <span class="f-date">{{ formatDateShort(note.created_at) }}</span>
@@ -72,7 +75,12 @@
         <div class="pushpin-red large"></div>
         <div class="preview-card">
           <div class="preview-header">
-            <input v-model="newNote.title" placeholder="在此输入标题..." class="preview-input-title" maxlength="15" />
+            <input 
+              v-model="newNote.title" 
+              placeholder="输入标题..." 
+              class="preview-input-title" 
+              maxlength="15" 
+            />
             <button class="close-preview" @click="showPublish = false">×</button>
           </div>
           <div class="preview-body">
@@ -80,19 +88,27 @@
               <input type="file" @change="onFileChange" accept="image/*" class="hidden-input" ref="fileInput" />
               <div v-if="imagePreview" class="image-wrapper">
                 <img :src="imagePreview" class="img-content" />
-                <div class="img-mask">更换图片</div>
+                <div class="img-mask">点击更换</div>
               </div>
               <div v-else class="upload-placeholder">
-                <span>📷 添加图片 (可选)</span>
+                <span class="icon">📷</span>
+                <span>添加展示图片 (可选)</span>
               </div>
             </div>
-            <textarea v-model="newNote.content" placeholder="这一刻的想法..." class="preview-textarea-content"></textarea>
+            <textarea 
+              v-model="newNote.content" 
+              placeholder="写下你此刻的想法..." 
+              class="preview-textarea-content"
+            ></textarea>
           </div>
           <div class="preview-footer">
             <div class="footer-meta"><span>👤 {{ currentUsername }}</span><span>📅 刚刚</span></div>
-            <button @click="submitNote" :disabled="loading" class="btn-publish-confirm">{{ loading ? '同步中...' : '钉在墙上' }}</button>
+            <button @click="submitNote" :disabled="loading" class="btn-publish-confirm">
+              {{ loading ? '发布中...' : '钉在墙上' }}
+            </button>
           </div>
         </div>
+        <p class="preview-hint">✨ 预览模式：发布后即为该效果</p>
       </div>
     </div>
 
@@ -106,7 +122,6 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 
-// 基础配置保持不变
 const getBaseUrl = () => {
   const { protocol, hostname, port } = window.location;
   if (hostname === 'localhost' || hostname === '127.0.0.1') return `${protocol}//${hostname}:8000`;
@@ -127,15 +142,15 @@ const showFullImage = ref(false);
 const previewingImageUrl = ref('');
 const collapsedUsers = ref(new Set());
 
-// ✨ 修复 3：首贴判定逻辑（增加防御性编程）
+// 首贴判定逻辑（增加 Number 强制转换，解决匹配失败问题）
 const userAnchorInfo = computed(() => {
   const anchors = {};
   if (!notes.value.length) return anchors;
   notes.value.forEach(note => {
-    // 确保 note.user 存在
     if (!note.user) return;
-    if (!anchors[note.user] || Number(note.id) < Number(anchors[note.user].id)) {
-      anchors[note.user] = { id: note.id, x: note.x_position, y: note.y_position };
+    const nid = Number(note.id);
+    if (!anchors[note.user] || nid < Number(anchors[note.user].id)) {
+      anchors[note.user] = { id: nid, x: note.x_position, y: note.y_position };
     }
   });
   return anchors;
@@ -145,46 +160,68 @@ const processedNotes = computed(() => {
   const anchors = userAnchorInfo.value;
   return notes.value.map(note => ({
     ...note,
-    isFirst: note.id === anchors[note.user]?.id
+    isFirst: Number(note.id) === Number(anchors[note.user]?.id)
   }));
 });
 
 const isNoteCollapsed = (note) => {
-  // 如果首贴标记不存在，默认不折叠
-  const isFirst = note.isFirst || (note.id === userAnchorInfo.value[note.user]?.id);
-  return !isFirst && collapsedUsers.value.has(note.user);
+  return !note.isFirst && collapsedUsers.value.has(note.user);
 };
 
 const getDynamicNoteStyle = (note) => {
-  const anchor = userAnchorInfo.value[note.user];
+  const anchors = userAnchorInfo.value;
   const isTucked = isNoteCollapsed(note);
-  // 如果找不到锚点（可能数据还没加载），保持原位
-  const targetX = (isTucked && anchor) ? anchor.x : note.x_position;
-  const targetY = (isTucked && anchor) ? anchor.y : note.y_position;
-
+  const anchor = anchors[note.user];
+  
   return {
-    left: targetX + '%',
-    top: targetY + '%',
+    left: (isTucked && anchor ? anchor.x : note.x_position) + '%',
+    top: (isTucked && anchor ? anchor.y : note.y_position) + '%',
     transform: `rotate(${isTucked ? 0 : note.rotation}deg) scale(${isTucked ? 0.2 : 1})`,
     opacity: isTucked ? 0 : 1,
-    zIndex: (note.isFirst || isTucked) ? 100 : note.z_index,
+    zIndex: note.isFirst ? 100 : note.z_index,
     pointerEvents: isTucked ? 'none' : 'auto'
   };
 };
 
 const toggleUserCollapse = (username) => {
-  if (collapsedUsers.value.has(username)) {
-    collapsedUsers.value.delete(username);
-  } else {
-    collapsedUsers.value.add(username);
-  }
+  if (collapsedUsers.value.has(username)) collapsedUsers.value.delete(username);
+  else collapsedUsers.value.add(username);
 };
 
 const getUserNoteCount = (username) => {
   return notes.value.filter(n => n.user === username).length;
 };
 
-// 后续 API 请求逻辑保持不变...
+// ✨ 关键改进：真正的“乐观更新”点赞逻辑
+const handleToggleLike = async (note) => {
+  // 1. 在原始数组中找到该便签本体，确保 Vue 能追踪到变化
+  const originalNote = notes.value.find(n => n.id === note.id);
+  if (!originalNote) return;
+
+  // 2. 存下旧状态，用于回滚
+  const wasLiked = originalNote.is_liked;
+  const oldCount = originalNote.likes_count || 0;
+
+  // 3. 瞬间改变 UI (乐观更新)
+  originalNote.is_liked = !wasLiked;
+  originalNote.likes_count = wasLiked ? Math.max(0, oldCount - 1) : oldCount + 1;
+
+  try {
+    const res = await axios.post(`${API_BASE_URL}/api/board/${note.id}/toggle_like/`, {}, {
+      headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      withCredentials: true
+    });
+    // 4. 用服务器返回的权威数据进行同步
+    originalNote.likes_count = res.data.likes_count;
+    originalNote.is_liked = res.data.is_liked;
+  } catch (err) {
+    // 5. 失败回滚
+    originalNote.is_liked = wasLiked;
+    originalNote.likes_count = oldCount;
+    console.error("点赞同步失败:", err);
+  }
+};
+
 const handleCanvasClick = (e) => {
   if (e.target.className !== 'felt-canvas') return;
   const rect = e.currentTarget.getBoundingClientRect();
@@ -193,6 +230,13 @@ const handleCanvasClick = (e) => {
     y: ((e.clientY - rect.top) / rect.height) * 100 
   };
   showPublish.value = true;
+};
+
+const fetchNotes = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/api/board/`, { withCredentials: true });
+    notes.value = res.data;
+  } catch (err) { console.error(err); }
 };
 
 const onNoteDragStart = (e, note) => {
@@ -267,22 +311,9 @@ const getCookie = (name) => {
   }
   return cookieValue;
 };
+
 const formatImageUrl = (url) => url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-const fetchNotes = async () => {
-  try {
-    const res = await axios.get(`${API_BASE_URL}/api/board/`, { withCredentials: true });
-    notes.value = res.data;
-  } catch (err) { console.error(err); }
-};
-const handleToggleLike = async (note) => {
-  try {
-    const res = await axios.post(`${API_BASE_URL}/api/board/${note.id}/toggle_like/`, {}, {
-      headers: { 'X-CSRFToken': getCookie('csrftoken') }, withCredentials: true
-    });
-    note.likes_count = res.data.likes_count;
-    note.is_liked = res.data.is_liked;
-  } catch (err) { console.error(err); }
-};
+
 const handleDelete = async (noteId) => {
   if (!confirm("确定要撕掉这张便签吗？")) return;
   try {
@@ -292,14 +323,17 @@ const handleDelete = async (noteId) => {
     notes.value = notes.value.filter(n => n.id !== noteId);
   } catch (err) { alert("删除失败"); }
 };
+
 const onFileChange = (e) => {
   const file = e.target.files[0];
   if (file) { selectedFile.value = file; imagePreview.value = URL.createObjectURL(file); }
 };
+
 const removeImage = () => {
   selectedFile.value = null; imagePreview.value = null;
   if (fileInput.value) fileInput.value.value = '';
 };
+
 const openImagePreview = (url) => { previewingImageUrl.value = url; showFullImage.value = true; };
 const closeImagePreview = () => { showFullImage.value = false; };
 const formatDateShort = (dateStr) => {
@@ -310,51 +344,109 @@ onMounted(fetchNotes);
 </script>
 
 <style scoped>
-/* 核心布局 */
-.board-wrapper { position: fixed; top: 0; left: 0; width: 100vw; height: calc(100vh - 60px); background: #2c1e1a; display: flex; flex-direction: column; overflow: hidden; z-index: 10; }
-.board-header { flex: 0 0 auto; background: rgba(0,0,0,0.9); padding: 10px 15px; color: white; z-index: 100; }
-.header-content { display: flex; justify-content: space-between; align-items: center; }
+/* ✨ 核心容器：锁定深色背景 */
+.board-wrapper { 
+  position: fixed; top: 0; left: 0; width: 100vw; height: calc(100vh - 65px); 
+  background: #2c1e1a; display: flex; flex-direction: column; overflow: hidden; z-index: 10;
+  color: #ffffff; /* 确保标题栏等全局文字默认白色 */
+}
+
+/* 顶部标题栏 */
+.board-header { 
+  flex: 0 0 auto; background: rgba(0,0,0,0.9); padding: 10px 15px; 
+  z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); 
+}
+.header-left h2 { color: #ffffff !important; }
+.header-info { color: #d4a373 !important; }
+
 .canvas-area { flex: 1; position: relative; width: 100%; overflow: hidden; }
 .felt-canvas { width: 100%; height: 100%; background-color: #5d4037; background-image: url('https://www.transparenttextures.com/patterns/felt.png'); border: 4px solid #3e2723; box-shadow: inset 0 0 40px rgba(0,0,0,0.7); position: relative; overflow: auto; }
 
-/* 便签样式 */
+/* ✨ 核心修复：便签纸文字颜色强效锁死，无视深色模式 */
 .note-sticky {
   position: absolute; width: 160px; background: #fffbe6; padding: 10px;
   box-shadow: 3px 3px 8px rgba(0,0,0,0.4); border-radius: 2px;
   margin-left: -80px; 
-  transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s ease, opacity 0.4s ease;
+  transition: left 0.65s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.65s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s ease, opacity 0.4s ease;
   will-change: left, top, transform, opacity;
+  /* 强行锁死深褐色 */
+  color: #4a3701 !important; 
 }
 
-/* ✨ 修复：限制便签内图片，确保不会顶破边框 */
-.s-image-box { margin-top: 5px; border-radius: 2px; overflow: hidden; max-height: 200px; display: flex; align-items: center; }
-.s-image { width: 100%; height: auto; max-height: 200px; object-fit: cover; }
+.note-sticky.first-note-anchor { 
+  border: 2px solid #fadb14; background: #fffdf0; 
+  box-shadow: 0 0 15px rgba(250, 219, 20, 0.3), 3px 3px 8px rgba(0,0,0,0.4); 
+  z-index: 50; 
+}
 
-/* ✨ 修复：预览弹窗样式（增加显眼的背景遮罩） */
+/* 限制图片高度 */
+.s-image-box { 
+  margin-top: 5px; border-radius: 2px; overflow: hidden; 
+  max-height: 150px; display: flex; align-items: center; justify-content: center;
+}
+.s-image { width: 100%; height: auto; max-height: 150px; object-fit: cover; }
+
+.s-title { 
+  font-size: 14px; font-weight: bold; margin-bottom: 5px; 
+  color: #856404 !important; /* 强制深金棕标题 */
+}
+.s-content { 
+  font-size: 12px; color: #5d4037 !important; 
+  line-height: 1.3; word-break: break-all; 
+}
+
+/* ✨ 丝滑优化：红心弹跳动画 */
+.f-like {
+  background: rgba(255, 255, 255, 0.6); border: 1px solid #eee; border-radius: 12px;
+  padding: 2px 8px; cursor: pointer; display: flex; align-items: center; gap: 4px;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); outline: none;
+  color: #666 !important;
+}
+.f-like.is-liked { 
+  border-color: #ff4d4f; background: #fff1f0; color: #ff4d4f !important; 
+}
+.f-like.is-liked .heart-icon { animation: heartPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+@keyframes heartPop { 
+  0% { transform: scale(1); } 
+  50% { transform: scale(1.6); } 
+  100% { transform: scale(1); } 
+}
+
+/* 预览编辑器遮罩 */
 .modal-overlay { 
   position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-  background: rgba(0, 0, 0, 0.85); /* 调暗背景 */
-  display: flex; justify-content: center; align-items: center; 
-  z-index: 2000; /* 确保在最顶层 */
+  background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; 
+  align-items: center; z-index: 2000; padding: 20px; 
 }
 
-.publish-note-preview { position: relative; width: 90%; max-width: 380px; }
-.preview-card { background: #fffbe6; padding: 25px; border-radius: 4px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+.publish-note-preview { position: relative; width: 90%; max-width: 380px; animation: modalEnter 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+.preview-card { background: #fffbe6; padding: 25px; border-radius: 4px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
 
-/* 预览图片控制 */
-.image-wrapper { width: 100%; max-height: 300px; overflow: hidden; border-radius: 4px; }
-.img-content { width: 100%; height: auto; display: block; }
+.preview-input-title { 
+  width: 85%; background: transparent; border: none; border-bottom: 1px dashed #ffe58f; 
+  font-size: 20px; font-weight: bold; color: #856404 !important; outline: none; 
+}
+.preview-textarea-content { 
+  width: 100%; min-height: 120px; background: transparent; border: none; 
+  font-size: 16px; line-height: 1.6; color: #333333 !important; outline: none; resize: none; margin-top: 15px; 
+}
 
-/* 其他细节保持不变 */
-.pushpin-red { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 10px; height: 10px; background: radial-gradient(circle at 30% 30%, #ff5252, #b71c1c); border-radius: 50%; }
-.pushpin-red.large { width: 20px; height: 20px; top: -10px; z-index: 10; }
-.anchor-badge { position: absolute; top: -18px; left: 5px; display: flex; align-items: center; gap: 5px; z-index: 2; }
-.badge-text { background: #fadb14; color: #856404; font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 4px; border: 1px solid #856404; }
-.collapse-toggle-btn { background: rgba(255, 255, 255, 0.9); border: 1px solid #ddd; border-radius: 4px; font-size: 10px; padding: 1px 6px; cursor: pointer; color: #666; }
-.preview-input-title { width: 80%; background: transparent; border: none; border-bottom: 1px dashed #ffe58f; font-size: 20px; font-weight: bold; color: #856404; outline: none; }
-.preview-textarea-content { width: 100%; min-height: 120px; background: transparent; border: none; font-size: 16px; line-height: 1.6; color: #333; outline: none; resize: none; margin-top: 10px; }
-.btn-publish-confirm { background: #52c41a; color: white; border: none; padding: 12px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+.preview-hint { text-align: center; color: #ffffff !important; font-size: 12px; margin-top: 15px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+
+/* 基础装饰 */
+.pushpin-red { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 12px; height: 12px; background: radial-gradient(circle at 30% 30%, #ff5252, #b71c1c); border-radius: 50%; z-index: 5; }
+.pushpin-red.large { width: 22px; height: 22px; top: -12px; }
+.anchor-badge { position: absolute; top: -20px; left: 5px; display: flex; align-items: center; gap: 5px; z-index: 60; }
+.badge-text { background: #fadb14; color: #856404; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; border: 1px solid #856404; }
+.collapse-toggle-btn { background: rgba(255, 255, 255, 0.95); border: 1px solid #ddd; border-radius: 4px; font-size: 10px; padding: 2px 8px; cursor: pointer; color: #333; transition: 0.2s; }
+
+.btn-publish-confirm { background: #52c41a; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 15px rgba(82,196,26,0.3); }
+
 .fullscreen-mask { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 3000; display: flex; justify-content: center; align-items: center; }
 .full-size-img { max-width: 95%; max-height: 95%; object-fit: contain; }
+
+@media (max-width: 600px) { .note-sticky { width: 140px; margin-left: -70px; } }
 .hidden-input { display: none; }
+@keyframes modalEnter { from { opacity: 0; transform: scale(0.9) translateY(30px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 </style>
