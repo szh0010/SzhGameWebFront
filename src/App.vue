@@ -4,6 +4,8 @@
       <RouterView />
     </div>
 
+    <AIAssistant v-if="showAIAssistant" />
+
     <BottomNav v-if="hasNav" />
 
     <Transition name="fade">
@@ -26,6 +28,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BottomNav from './components/BottomNav.vue';
+import AIAssistant from './components/AIAssistant.vue';
 import { useSocket } from './store/socket'; 
 
 const route = useRoute();
@@ -37,24 +40,29 @@ const inviteData = ref({});
 
 /**
  * 1. 是否显示 BottomNav 组件
- * 重点修复：增加了 'chat' 页面。进入聊天室时隐藏导航栏，腾出底部空间给输入框。
  */
 const hasNav = computed(() => {
-  // 这里的名单必须跟 BottomNav.vue 里的逻辑完全同步
-  // 请确认你 router/index.js 中聊天页面的 name 确实叫 'chat'
   const hideOnPages = ['login', 'register', 'sticky-board', 'chat'];
   return route.name && !hideOnPages.includes(route.name);
 });
 
 /**
+ * ✨ 新增：是否显示 AI 助手
+ * 逻辑：登录和注册页面不需要显示
+ */
+const showAIAssistant = computed(() => {
+  const hideOnPages = ['login', 'register'];
+  return route.name && !hideOnPages.includes(route.name);
+});
+
+/**
  * 2. 是否需要为导航栏留出底部占位
- * 当 hasNav 为 false 时，padding 会自动变为 0，解决遮挡问题
  */
 const showNavPadding = computed(() => {
-  // 只有当显示导航栏，且不是对局页面时才需要底部填充
   return hasNav.value && route.name !== 'game';
 });
 
+// 处理对战响应
 const confirmGame = (isAccept) => {
   if (isAccept) {
     send({
@@ -73,6 +81,7 @@ const confirmGame = (isAccept) => {
   showInviteModal.value = false;
 };
 
+// 全局 Socket 初始化
 const initGlobalSocket = () => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -106,7 +115,7 @@ watch(() => route.name, (newName, oldName) => {
 </script>
 
 <style>
-/* --- 全局样式修正 --- */
+/* --- 全局样式设定 --- */
 :root {
   --primary-color: #42b983;
   --nav-height: 65px;
@@ -119,7 +128,6 @@ body {
   background-color: #f5f7fa;
   width: 100%;
   height: 100%;
-  /* 修复：确保 body 字体颜色在手机端有默认值，防止某些系统强制变色 */
   color: #2c3e50;
 }
 
@@ -135,10 +143,8 @@ body {
   flex: 1;
   width: 100%;
   position: relative;
-  /* 确保这里没有任何 max-width 限制，实现真正的全屏 */
 }
 
-/* 动态内边距：当 hasNav 为 true 时，底部会留出 65px 防止内容被挡 */
 .has-nav-padding {
   padding-bottom: var(--nav-height);
 }

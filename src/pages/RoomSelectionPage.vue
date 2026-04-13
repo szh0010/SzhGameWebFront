@@ -9,11 +9,6 @@
     <div class="content">
       <div v-if="loading" class="loading">加载房间中...</div>
 
-      <div v-else-if="rooms.length === 0" class="empty-state">
-        <p>暂无可用房间</p>
-        <button @click="createRoom" class="btn-create">创建房间</button>
-      </div>
-
       <div v-else class="rooms-container">
         <div
           v-for="room in rooms"
@@ -29,7 +24,6 @@
             </p>
             <p class="room-game-status">状态：{{ room.status }}</p>
           </div>
-          
           <button 
             :class="room.playerCount >= 2 ? 'btn-full' : 'btn-join'"
             :disabled="room.playerCount >= 2"
@@ -38,12 +32,68 @@
           </button>
         </div>
 
+        <div class="ai-room-card" @click="showAIModal = true">
+          <div class="ai-icon">🤖</div>
+          <div class="ai-info">
+            <h3>人机对局</h3>
+            <p>挑战 DeepSeek 棋圣</p>
+          </div>
+          <button class="btn-ai">挑战</button>
+        </div>
+
         <div class="create-room-card" @click="createRoom">
           <div class="plus-icon">+</div>
           <p>创建新房间</p>
         </div>
       </div>
     </div>
+
+    <Transition name="fade">
+      <div v-if="showAIModal" class="modal-overlay" @click.self="showAIModal = false">
+        <div class="ai-config-modal">
+          <div class="modal-header">
+            <h3>AI 对战配置</h3>
+            <button class="close-x" @click="showAIModal = false">×</button>
+          </div>
+          
+          <div class="config-item">
+            <label>挑战难度</label>
+            <div class="difficulty-options">
+              <button 
+                v-for="d in ['easy', 'medium', 'hard']" 
+                :key="d"
+                :class="{ active: aiConfig.difficulty === d }"
+                @click="aiConfig.difficulty = d"
+              >
+                {{ d === 'easy' ? '简单' : d === 'medium' ? '中等' : '棋圣' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="config-item">
+            <label>我的棋子 (黑子先手)</label>
+            <div class="color-options">
+              <button 
+                :class="{ active: aiConfig.myColor === 'black' }"
+                @click="aiConfig.myColor = 'black'"
+              >
+                ⚫ 我执黑
+              </button>
+              <button 
+                :class="{ active: aiConfig.myColor === 'white' }"
+                @click="aiConfig.myColor = 'white'"
+              >
+                ⚪ 我执白
+              </button>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn-start-ai" @click="startAIGame">进入对局</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -59,24 +109,25 @@ const rooms = ref([])
 const gameId = ref(route.params.gameId || 'gomoku')
 let refreshInterval = null
 
+// --- ✨ 人机对战相关状态 ---
+const showAIModal = ref(false)
+const aiConfig = ref({
+  difficulty: 'medium',
+  myColor: 'black'
+})
+
 onMounted(() => {
   fetchRooms()
-  // 设置定时刷新房间列表（每 2 秒刷新一次）
   refreshInterval = setInterval(fetchRooms, 2000)
 })
 
 onUnmounted(() => {
-  // 页面卸载时清除定时器
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
+  if (refreshInterval) clearInterval(refreshInterval)
 })
 
-// --- 修改点 1：获取房间列表使用相对路径 ---
 const fetchRooms = async () => {
   try {
     const res = await axios.get(`/api/rooms/?game=${gameId.value}`)
-    console.log('获取房间列表:', res.data)
     rooms.value = res.data.rooms
   } catch (err) {
     console.error('获取房间失败:', err)
@@ -90,62 +141,54 @@ const joinRoom = (roomId) => {
   })
 }
 
-// --- 修改点 2：创建房间使用相对路径 ---
+// --- ✨ 启动人机对战 ---
+const startAIGame = () => {
+  showAIModal.value = false
+  // 使用特殊格式的 roomId，方便在 Game 页面识别为 AI 模式
+  const aiRoomId = `ai_${aiConfig.value.difficulty}_${aiConfig.value.myColor}`
+  router.push({
+    name: 'game',
+    params: { 
+      gameId: gameId.value, 
+      roomId: aiRoomId 
+    }
+  })
+}
+
 const createRoom = async () => {
-  // 生成房间号
   const newRoomId = String(Math.floor(Math.random() * 10000))
   const username = localStorage.getItem('username')
-  
-  console.log('正在创建房间，roomId:', newRoomId, 'username:', username)
-
   try {
-    // 先调用后端 API 创建房间
     const res = await axios.post('/api/create-room/', {
       room_id: newRoomId,
       game: gameId.value,
-      username: username  // 传递当前登录用户的用户名
+      username: username
     })
-
-    console.log('房间创建响应:', res.data)
-
     if (res.data.status === 'success') {
-      console.log('房间创建成功')
-      console.log('新房间 ID:', newRoomId)
-      
-      // 立即刷新一次房间列表
       await fetchRooms()
-
-      // 跳转到游戏页面
       router.push({
         name: 'game',
         params: { gameId: gameId.value, roomId: newRoomId }
       })
-    } else {
-      alert('创建房间失败：' + (res.data.message || '未知错误'))
     }
   } catch (err) {
-    console.error('创建房间失败:', err)
-    alert('创建房间失败：' + (err.response?.data?.message || err.message || '网络错误'))
+    alert('创建失败：' + (err.response?.data?.message || err.message))
   }
 }
 
-const goBack = () => {
-  router.push('/game-selection')
-}
-
+const goBack = () => router.push('/game-selection')
 const logout = () => {
   localStorage.removeItem('username')
+  localStorage.removeItem('token')
   router.push('/login')
 }
 </script>
 
 <style scoped>
-/* 样式部分保持不变 */
 .room-selection-wrapper {
   min-height: 100vh;
-  background: #f0f2f5;
+  background: #f4f7f9;
   padding: 20px;
-  font-family: 'Microsoft YaHei', sans-serif;
 }
 
 .header {
@@ -153,189 +196,140 @@ const logout = () => {
   justify-content: space-between;
   align-items: center;
   max-width: 900px;
-  margin: 0 auto 40px;
-  gap: 20px;
+  margin: 0 auto 30px;
 }
 
-.header h2 {
-  margin: 0;
-  flex: 1;
-  text-align: center;
-  font-size: 28px;
-  color: #333;
-}
-
-.btn-back {
-  padding: 10px 15px;
-  background: #f5f5f5;
-  color: #333;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-back:hover {
-  background: #e6e6e6;
-}
-
-.btn-logout {
-  padding: 10px 20px;
-  background: #ff4d4f;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: opacity 0.3s;
-}
-
-.btn-logout:hover {
-  opacity: 0.8;
-}
-
-.content {
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.loading {
-  text-align: center;
-  padding: 40px;
-  font-size: 16px;
-  color: #666;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 80px 20px;
-}
-
-.empty-state p {
-  font-size: 18px;
-  color: #666;
-  margin-bottom: 30px;
-}
-
-.btn-create {
-  padding: 12px 30px;
-  background: #1890ff;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background 0.3s;
-}
-
-.btn-create:hover {
-  background: #40a9ff;
-}
+.header h2 { font-size: 24px; color: #2c3e50; }
 
 .rooms-container {
+  max-width: 900px;
+  margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
 
-.room-card {
+/* 房间卡片通用样式 */
+.room-card, .ai-room-card, .create-room-card {
   background: white;
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.room-card:hover, .ai-room-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+/* AI 卡片特殊样式 */
+.ai-room-card {
+  border: 2px solid #e0e7ff;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 100%);
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.ai-icon {
+  font-size: 36px;
+  background: #eef2ff;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.ai-info h3 { margin: 0; font-size: 18px; color: #4f46e5; }
+.ai-info p { margin: 5px 0 0; font-size: 13px; color: #6366f1; }
+.btn-ai {
+  margin-left: auto;
+  padding: 6px 12px;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 8px;
+}
+
+/* 创建房间卡片 */
+.create-room-card {
+  border: 2px dashed #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+}
+
+/* 弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-config-modal {
+  background: white;
+  width: 90%;
+  max-width: 380px;
+  border-radius: 24px;
+  padding: 24px;
+}
+
+.modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
 }
 
-.room-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+.close-x { background: none; border: none; font-size: 24px; color: #94a3b8; cursor: pointer; }
+
+.config-item { margin-bottom: 20px; }
+.config-item label { display: block; margin-bottom: 10px; font-weight: bold; color: #475569; }
+
+.difficulty-options, .color-options {
+  display: flex;
+  gap: 10px;
 }
 
-.room-card.room-full {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.room-card.room-full:hover {
-  transform: none;
-}
-
-.room-info h3 {
-  margin: 0 0 10px 0;
-  color: #333;
-  font-size: 18px;
-}
-
-.room-status {
-  margin: 5px 0;
-  color: #666;
-  font-size: 14px;
-}
-
-.room-status.text-danger {
-  color: #ff4d4f;
-  font-weight: bold;
-}
-
-.room-game-status {
-  margin: 5px 0;
-  color: #1890ff;
-  font-size: 14px;
-}
-
-.btn-join {
-  padding: 8px 16px;
-  background: #1890ff;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.btn-join:hover {
-  background: #40a9ff;
-}
-
-.btn-full {
-  padding: 8px 16px;
-  background: #bfbfbf;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: not-allowed;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.create-room-card {
+.difficulty-options button, .color-options button {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
   background: white;
-  border: 2px dashed #ddd;
-  border-radius: 12px;
-  padding: 40px 20px;
-  text-align: center;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
 }
 
-.create-room-card:hover {
-  border-color: #1890ff;
-  background: #f5f9ff;
+.difficulty-options button.active, .color-options button.active {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
 }
 
-.plus-icon {
-  font-size: 40px;
-  color: #1890ff;
-  margin-bottom: 10px;
-}
-
-.create-room-card p {
-  margin: 0;
-  color: #1890ff;
+.btn-start-ai {
+  width: 100%;
+  padding: 14px;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: bold;
   font-size: 16px;
+  cursor: pointer;
 }
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
