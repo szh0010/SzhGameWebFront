@@ -40,23 +40,25 @@ const inviteData = ref({});
 
 /**
  * 1. 是否显示 BottomNav 组件
+ * ✨ 修改：增加了 'game'，对局时隐藏导航栏
  */
 const hasNav = computed(() => {
-  const hideOnPages = ['login', 'register', 'sticky-board', 'chat'];
+  const hideOnPages = ['login', 'register', 'sticky-board', 'chat', 'game'];
   return route.name && !hideOnPages.includes(route.name);
 });
 
 /**
- * ✨ 新增：是否显示 AI 助手
- * 逻辑：登录和注册页面不需要显示
+ * 2. 是否显示 AI 助手悬浮球
+ * ✨ 修改：增加了 'game'，对局时隐藏 AI 助手，避免遮挡右下角玩家信息
  */
 const showAIAssistant = computed(() => {
-  const hideOnPages = ['login', 'register'];
+  const hideOnPages = ['login', 'register', 'game'];
   return route.name && !hideOnPages.includes(route.name);
 });
 
 /**
- * 2. 是否需要为导航栏留出底部占位
+ * 3. 是否需要为导航栏留出底部占位
+ * 只有在显示导航栏，且不是游戏页面时才需要 padding
  */
 const showNavPadding = computed(() => {
   return hasNav.value && route.name !== 'game';

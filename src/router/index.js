@@ -12,12 +12,12 @@ import ChatPage from '../pages/ChatPage.vue'
 const routes = [
   {
     path: '/login',
-    name: 'login',
+    name: 'login', // ✨ 对应 App.vue: 隐藏 Nav & AI
     component: LoginPage
   },
   {
     path: '/register',
-    name: 'register',
+    name: 'register', // ✨ 对应 App.vue: 隐藏 Nav & AI
     component: RegisterPage
   },
   {
@@ -34,35 +34,31 @@ const routes = [
   },
   {
     path: '/game/:gameId/:roomId',
-    name: 'game',
+    name: 'game', // ✨ 关键：对应 App.vue 逻辑，对局中隐藏 Nav & AI
     component: GamePage,
     meta: { requiresAuth: true }
   },
   {
     path: '/board',
-    // ✨ 修改：统一使用小写连字符，匹配 App.vue 中的逻辑
-    name: 'sticky-board', 
+    name: 'sticky-board', // ✨ 对应 App.vue: 留言板隐藏 Nav
     component: StickyBoard,
     meta: { requiresAuth: true }
   },
   {
     path: '/profile',
-    // ✨ 修改：建议统一规范
-    name: 'profile', 
+    name: 'profile', // 显示 Nav
     component: ProfilePage,
     meta: { requiresAuth: true }
   },
   {
     path: '/friends',
-    // ✨ 修改：建议统一规范
-    name: 'friends', 
+    name: 'friends', // 显示 Nav
     component: FriendsPage,
     meta: { requiresAuth: true }
   },
   {
     path: '/chat/:friendId',
-    // ✨ 修改：统一使用小写，确保 BottomNav 能够正确隐藏
-    name: 'chat', 
+    name: 'chat', // ✨ 对应 App.vue: 聊天界面隐藏 Nav
     component: ChatPage,
     meta: { requiresAuth: true }
   },
@@ -78,11 +74,11 @@ const router = createRouter({
 })
 
 /**
- * 导航守卫
+ * 导航守卫 - 权限校验
  */
 router.beforeEach((to, from, next) => {
-  // 小提示：实际项目中用 token 判断会比 username 更安全
-  const isLoggedIn = localStorage.getItem('username')
+  // 老司机提醒：实际生产环境中，校验 localStorage.getItem('token') 会比校验 username 更靠谱
+  const isLoggedIn = localStorage.getItem('token') || localStorage.getItem('username')
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     next('/login')

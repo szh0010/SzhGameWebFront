@@ -24,7 +24,9 @@
         <transition name="fade">
           <div v-if="searchResult" class="search-result-card">
             <div class="user-brief">
-              <img :src="formatUrl(searchResult.avatar)" class="mini-avatar" />
+              <div class="avatar-wrapper">
+                <img :src="formatUrl(searchResult.avatar)" class="item-avatar" />
+              </div>
               <div class="text-info">
                 <p class="name">{{ searchResult.nickname || searchResult.username }}</p>
                 <p class="id">UID: {{ searchResult.uid }}</p>
@@ -72,18 +74,25 @@
         </div>
 
         <div v-if="activeTab === 'requests'" class="list-wrapper">
-          <div v-for="req in requestList" :key="req.id" class="list-item">
-            <div class="item-info">
-              <p class="item-name">来自 <b>{{ req.from_name }}</b> (UID: {{ req.from_uid }}) 的请求</p>
-              <p class="item-time">{{ req.time }}</p>
+          <div v-for="req in requestList" :key="req.request_id" class="list-item">
+            
+            <div class="avatar-wrapper">
+              <img :src="formatUrl(req.avatar)" class="item-avatar" />
             </div>
+
+            <div class="item-info">
+              <p class="item-name"><b>{{ req.nickname || req.username }}</b> (UID: {{ req.uid }})</p>
+              <p class="item-time">申请加你为好友 · {{ formatDate(req.created_at) }}</p>
+            </div>
+
             <div class="request-actions">
-              <button class="accept-btn" @click="handleRequest(req.id, 'accept')">同意</button>
-              <button class="ignore-btn" @click="handleRequest(req.id, 'reject')">忽略</button>
+              <button class="accept-btn" @click="handleRequest(req.request_id, 'accept')">同意</button>
+              <button class="ignore-btn" @click="handleRequest(req.request_id, 'reject')">忽略</button>
             </div>
           </div>
           <p v-if="requestList.length === 0" class="empty-hint">目前没有新的好友申请</p>
         </div>
+
       </div>
     </div>
   </div>
@@ -93,53 +102,78 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
-// ✨ 引入全局 Socket 状态和方法
 import { socketStore, useSocket } from '../store/socket'; 
 
 const router = useRouter();
 const { connect } = useSocket();
-const API_BASE = '';
-const myUid = ref(localStorage.getItem('user_id') || '----');
+
+const getBaseUrl = () => {
+  const { protocol, hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${protocol}//${hostname}:8000`;
+  }
+  return `${protocol}//${hostname}`;
+};
+const API_BASE_URL = getBaseUrl();
+
+const formatUrl = (url) => {
+  if (!url) return 'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix';
+  
+  if (url.startsWith('http')) {
+      if (url.includes('api.dicebear.com')) return url;
+  }
+  
+  let path = url;
+  if (url.includes('/media/')) {
+    path = '/media/' + url.split('/media/').pop();
+  }
+  
+  const { protocol, hostname } = window.location;
+  let targetHost = hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    targetHost = '47.98.240.67'; 
+  }
+  
+  const base = `${protocol}//${targetHost}`;
+  const finalPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${finalPath}`;
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '刚刚';
+  const d = new Date(dateStr);
+  return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 const searchId = ref('');
 const searchResult = ref(null);
 const isSearching = ref(false);
 const activeTab = ref('list');
-
+const myUid = ref(localStorage.getItem('user_id') || '----');
 const friendList = ref([]);
 const requestList = ref([]);
 const pendingCount = ref(0);
 
-/**
- * ✨ 获取未读消息计数 (响应式)
- */
 const unreadCounts = computed(() => socketStore.unreadCounts || {});
 
-/**
- * ✨ 获取好友实时状态
- */
 const getFriendStatus = (uid) => {
   return socketStore.isFriendOnline[Number(uid)] || false;
 };
 
-// --- 1. 数据初始化加载 ---
 const loadSocialData = async () => {
   try {
     const [friendsRes, requestsRes] = await Promise.all([
-      axios.get(`${API_BASE}/api/board/profile/my_friends/`, { withCredentials: true }),
-      axios.get(`${API_BASE}/api/board/profile/my_requests/`, { withCredentials: true })
+      axios.get(`${API_BASE_URL}/api/board/profile/my_friends/`, { withCredentials: true }),
+      axios.get(`${API_BASE_URL}/api/board/profile/my_requests/`, { withCredentials: true })
     ]);
     
     friendList.value = friendsRes.data;
-    
-    // 同步 API 在线状态到全局 Socket Store
     friendsRes.data.forEach(friend => {
       socketStore.isFriendOnline[Number(friend.uid)] = friend.is_online;
     });
 
     requestList.value = requestsRes.data;
     pendingCount.value = requestsRes.data.length;
-
-    // ✨ 核心逻辑：同步待处理申请数到全局 Store，以便底部导航栏显示红点
     socketStore.pendingRequestsCount = requestsRes.data.length;
     
   } catch (err) {
@@ -148,21 +182,13 @@ const loadSocialData = async () => {
 };
 
 onMounted(() => {
-  // 确保连接已建立
   connect();
   loadSocialData();
 });
 
-// --- 2. 导航逻辑 ---
-const goToChat = (uid) => {
-  router.push(`/chat/${uid}`);
-};
+const goToChat = (uid) => router.push(`/chat/${uid}`);
+const startGomoku = (uid) => router.push({ name: 'room-selection', params: { gameId: 'gomoku' } });
 
-const startGomoku = (uid) => {
-  router.push({ name: 'room-selection', params: { gameId: 'gomoku' } });
-};
-
-// --- 3. 搜索与申请逻辑 ---
 const handleSearch = async () => {
   const cleanId = searchId.value.toString().trim();
   if (!cleanId) return;
@@ -170,7 +196,7 @@ const handleSearch = async () => {
   searchResult.value = null;
 
   try {
-    const res = await axios.get(`${API_BASE}/api/board/profile/`, {
+    const res = await axios.get(`${API_BASE_URL}/api/board/profile/`, {
       params: { uid: cleanId },
       withCredentials: true
     });
@@ -189,7 +215,7 @@ const handleSearch = async () => {
 
 const sendFriendRequest = async (uid) => {
   try {
-    const res = await axios.post(`${API_BASE}/api/board/profile/add_friend/`, 
+    const res = await axios.post(`${API_BASE_URL}/api/board/profile/add_friend/`, 
       { to_uid: Number(uid) },
       { withCredentials: true }
     );
@@ -204,57 +230,64 @@ const sendFriendRequest = async (uid) => {
 
 const handleRequest = async (reqId, action) => {
   try {
-    await axios.post(`${API_BASE}/api/board/profile/handle_request/`, 
-      { req_id: reqId, action: action },
+    // ✨ 核心修复：req_id 改为 request_id，对齐后端暗号！
+    await axios.post(`${API_BASE_URL}/api/board/profile/handle_request/`, 
+      { request_id: reqId, action: action },
       { withCredentials: true }
     );
     alert(action === 'accept' ? "🤝 你们已经是好友啦！" : "🗑️ 已忽略");
-    // 重新加载数据会自动更新全局 pendingRequestsCount
     loadSocialData();
   } catch (err) {
     alert("⚠️ 操作失败，请重试");
   }
 };
-
-const formatUrl = (url) => {
-  if (!url) return 'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix';
-  return url.startsWith('http') ? url : `${API_BASE}${url}`;
-};
 </script>
 
 <style scoped>
-/* 样式部分保持不变 */
 .friends-container { padding: 20px; display: flex; justify-content: center; background: #f8fafc; min-height: calc(100vh - 60px); }
 .friends-card { background: white; width: 100%; max-width: 480px; border-radius: 24px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
 .friends-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .friends-header h2 { margin: 0; font-size: 20px; color: #333; }
 .my-id-badge { background: #eef2ff; color: #4f46e5; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; }
 
-.avatar-wrapper { position: relative; display: inline-block; flex-shrink: 0; }
-.item-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.avatar-wrapper { 
+  position: relative; 
+  display: inline-block; 
+  flex-shrink: 0; 
+  width: 48px; 
+  height: 48px; 
+}
+.item-avatar { 
+  width: 100%; 
+  height: 100%; 
+  border-radius: 50%; 
+  object-fit: cover; 
+  border: 2px solid #fff; 
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+  display: block;
+}
+
 .msg-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  background: #ff4d4f;
-  color: white;
-  font-size: 10px;
-  font-weight: bold;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #fff;
-  padding: 0 4px;
-  box-shadow: 0 2px 4px rgba(255, 77, 79, 0.3);
+  position: absolute; top: -2px; right: -2px; background: #ff4d4f; color: white;
+  font-size: 10px; font-weight: bold; min-width: 18px; height: 18px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; border: 2px solid #fff; padding: 0 4px;
 }
 
 .search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
 .search-bar input { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; outline: none; transition: 0.3s; }
 .search-bar input:focus { border-color: #42b983; box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.1); }
 .search-bar button { background: #42b983; color: white; border: none; padding: 0 20px; border-radius: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+
+.search-result-card {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; background: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0;
+  margin-top: 10px; margin-bottom: 20px;
+}
+.user-brief { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.text-info { flex: 1; min-width: 0; }
+.text-info .name { margin: 0; font-weight: bold; font-size: 15px; color: #166534; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.text-info .id { margin: 0; font-size: 12px; color: #15803d; margin-top: 2px; }
+.add-btn { background: #22c55e; color: white; border: none; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; font-weight: bold; flex-shrink: 0; }
 
 .tabs { display: flex; border-bottom: 1px solid #f1f5f9; margin-bottom: 16px; }
 .tab { flex: 1; text-align: center; padding: 12px; cursor: pointer; color: #94a3b8; font-weight: bold; position: relative; }
@@ -263,13 +296,14 @@ const formatUrl = (url) => {
 .badge { background: #ef4444; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 4px; vertical-align: middle; }
 
 .list-item { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid #f8fafc; }
-.item-info { flex: 1; margin-left: 14px; }
-.item-name { margin: 0; font-weight: 600; font-size: 15px; }
+.item-info { flex: 1; margin-left: 14px; min-width: 0; }
+.item-name { margin: 0; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-status { margin: 0; font-size: 11px; margin-top: 4px; }
+.item-time { margin: 0; font-size: 12px; color: #94a3b8; margin-top: 4px; }
 .status-online { color: #10b981; font-weight: bold; }
 .status-offline { color: #94a3b8; }
 
-.item-actions { display: flex; gap: 8px; }
+.item-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .chat-btn { background: #e0f2fe; color: #0369a1; border: none; padding: 6px 12px; border-radius: 12px; font-size: 13px; cursor: pointer; font-weight: 600; transition: 0.2s; }
 .chat-btn:hover { background: #bae6fd; }
 .action-btn { background: #f1f5f9; color: #475569; border: none; padding: 6px 12px; border-radius: 12px; font-size: 13px; cursor: pointer; font-weight: 600; }
@@ -281,7 +315,8 @@ const formatUrl = (url) => {
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 button:disabled { background: #cbd5e1; cursor: not-allowed; }
-.request-actions { display: flex; gap: 8px; }
-.accept-btn { background: #42b983; color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
-.ignore-btn { background: #f1f5f9; color: #64748b; border: none; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+
+.request-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.accept-btn { background: #42b983; color: white; border: none; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; }
+.ignore-btn { background: #f1f5f9; color: #64748b; border: none; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; }
 </style>

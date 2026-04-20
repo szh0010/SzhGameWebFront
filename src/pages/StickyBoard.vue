@@ -83,26 +83,34 @@
             />
             <button class="close-preview" @click="showPublish = false">×</button>
           </div>
+          
           <div class="preview-body">
             <div class="file-drop-zone" @click="$refs.fileInput.click()">
               <input type="file" @change="onFileChange" accept="image/*" class="hidden-input" ref="fileInput" />
+              
               <div v-if="imagePreview" class="image-wrapper">
                 <img :src="imagePreview" class="img-content" />
-                <div class="img-mask">点击更换</div>
+                <div class="img-mask">点击更换图片</div>
               </div>
+              
               <div v-else class="upload-placeholder">
-                <span class="icon">📷</span>
-                <span>添加展示图片 (可选)</span>
+                <span class="icon">📸</span>
+                <span>添加配图 (可选)</span>
               </div>
             </div>
+
             <textarea 
               v-model="newNote.content" 
               placeholder="写下你此刻的想法..." 
               class="preview-textarea-content"
             ></textarea>
           </div>
+
           <div class="preview-footer">
-            <div class="footer-meta"><span>👤 {{ currentUsername }}</span><span>📅 刚刚</span></div>
+            <div class="footer-meta">
+              <span>👤 {{ currentUsername }}</span>
+              <span>📅 刚刚</span>
+            </div>
             <button @click="submitNote" :disabled="loading" class="btn-publish-confirm">
               {{ loading ? '发布中...' : '钉在墙上' }}
             </button>
@@ -122,13 +130,40 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 
+// --- 1. 基础配置逻辑 ---
 const getBaseUrl = () => {
-  const { protocol, hostname, port } = window.location;
-  if (hostname === 'localhost' || hostname === '127.0.0.1') return `${protocol}//${hostname}:8000`;
-  return `${protocol}//${hostname}${port ? ':' + port : ''}`;
+  const { protocol, hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${protocol}//${hostname}:8000`;
+  }
+  return `${protocol}//${hostname}`;
 };
 const API_BASE_URL = getBaseUrl();
 
+/**
+ * ✨ 终极版：全自动环境适配的图片清洗函数
+ * 彻底告别“精神分裂”，本地找本地拿，线上找线上拿！
+ */
+const formatImageUrl = (url) => {
+  if (!url) return '';
+
+  // 1. 暴力切头：不管后端传过来的是带本地 IP 还是什么乱七八糟的域名，只留 /media/...
+  let path = url;
+  if (url.includes('/media/')) {
+    path = '/media/' + url.split('/media/').pop();
+  }
+
+  // 2. 动态拼装：API_BASE_URL 已经在上面定义好了（本地带 8000 端口，线上不带）
+  const base = API_BASE_URL.replace(/\/$/, '');
+  const finalPath = path.startsWith('/') ? path : `/${path}`;
+  
+  // 保留一行控制台输出，方便以后你排查问题
+  console.log("🖼️ 图片地址解析:", finalPath, "➡️", `${base}${finalPath}`);
+  
+  return `${base}${finalPath}`;
+};
+
+// --- 2. 逻辑部分 ---
 const notes = ref([]);
 const newNote = ref({ title: '', content: '' });
 const selectedFile = ref(null);
@@ -142,7 +177,6 @@ const showFullImage = ref(false);
 const previewingImageUrl = ref('');
 const collapsedUsers = ref(new Set());
 
-// 首贴判定逻辑（增加 Number 强制转换，解决匹配失败问题）
 const userAnchorInfo = computed(() => {
   const anchors = {};
   if (!notes.value.length) return anchors;
@@ -164,15 +198,12 @@ const processedNotes = computed(() => {
   }));
 });
 
-const isNoteCollapsed = (note) => {
-  return !note.isFirst && collapsedUsers.value.has(note.user);
-};
+const isNoteCollapsed = (note) => !note.isFirst && collapsedUsers.value.has(note.user);
 
 const getDynamicNoteStyle = (note) => {
   const anchors = userAnchorInfo.value;
   const isTucked = isNoteCollapsed(note);
   const anchor = anchors[note.user];
-  
   return {
     left: (isTucked && anchor ? anchor.x : note.x_position) + '%',
     top: (isTucked && anchor ? anchor.y : note.y_position) + '%',
@@ -188,37 +219,29 @@ const toggleUserCollapse = (username) => {
   else collapsedUsers.value.add(username);
 };
 
-const getUserNoteCount = (username) => {
-  return notes.value.filter(n => n.user === username).length;
+const getUserNoteCount = (username) => notes.value.filter(n => n.user === username).length;
+
+const fetchNotes = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/api/board/`, { withCredentials: true });
+    notes.value = res.data;
+  } catch (err) { console.error(err); }
 };
 
-// ✨ 关键改进：真正的“乐观更新”点赞逻辑
 const handleToggleLike = async (note) => {
-  // 1. 在原始数组中找到该便签本体，确保 Vue 能追踪到变化
   const originalNote = notes.value.find(n => n.id === note.id);
   if (!originalNote) return;
-
-  // 2. 存下旧状态，用于回滚
   const wasLiked = originalNote.is_liked;
   const oldCount = originalNote.likes_count || 0;
-
-  // 3. 瞬间改变 UI (乐观更新)
   originalNote.is_liked = !wasLiked;
   originalNote.likes_count = wasLiked ? Math.max(0, oldCount - 1) : oldCount + 1;
-
   try {
-    const res = await axios.post(`${API_BASE_URL}/api/board/${note.id}/toggle_like/`, {}, {
-      headers: { 'X-CSRFToken': getCookie('csrftoken') },
-      withCredentials: true
-    });
-    // 4. 用服务器返回的权威数据进行同步
+    const res = await axios.post(`${API_BASE_URL}/api/board/${note.id}/toggle_like/`, {}, { withCredentials: true });
     originalNote.likes_count = res.data.likes_count;
     originalNote.is_liked = res.data.is_liked;
   } catch (err) {
-    // 5. 失败回滚
     originalNote.is_liked = wasLiked;
     originalNote.likes_count = oldCount;
-    console.error("点赞同步失败:", err);
   }
 };
 
@@ -230,20 +253,6 @@ const handleCanvasClick = (e) => {
     y: ((e.clientY - rect.top) / rect.height) * 100 
   };
   showPublish.value = true;
-};
-
-const fetchNotes = async () => {
-  try {
-    const res = await axios.get(`${API_BASE_URL}/api/board/`, { withCredentials: true });
-    notes.value = res.data;
-  } catch (err) { console.error(err); }
-};
-
-const onNoteDragStart = (e, note) => {
-  const rect = e.target.getBoundingClientRect();
-  e.dataTransfer.setData('noteId', note.id);
-  e.dataTransfer.setData('offsetX', e.clientX - rect.left);
-  e.dataTransfer.setData('offsetY', e.clientY - rect.top);
 };
 
 const onBoardDrop = async (e) => {
@@ -267,10 +276,9 @@ const bringToFront = (note) => {
 
 const saveNotePosition = async (note) => {
   try {
-    const csrfToken = getCookie('csrftoken');
     await axios.patch(`${API_BASE_URL}/api/board/${note.id}/`, {
       x_position: note.x_position, y_position: note.y_position, z_index: note.z_index
-    }, { headers: { 'X-CSRFToken': csrfToken }, withCredentials: true });
+    }, { withCredentials: true });
   } catch (err) { console.error(err); }
 };
 
@@ -285,9 +293,8 @@ const submitNote = async () => {
   formData.append('rotation', (Math.random() * 10 - 5).toFixed(2));
   if (selectedFile.value) formData.append('image', selectedFile.value);
   try {
-    const csrfToken = getCookie('csrftoken');
     await axios.post(`${API_BASE_URL}/api/board/`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data', 'X-CSRFToken': csrfToken },
+      headers: { 'Content-Type': 'multipart/form-data' },
       withCredentials: true 
     });
     newNote.value = { title: '', content: '' };
@@ -297,29 +304,10 @@ const submitNote = async () => {
   } catch (err) { alert("发布失败"); } finally { loading.value = false; }
 };
 
-const getCookie = (name) => {
-  let cookieValue = null;
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        break;
-      }
-    }
-  }
-  return cookieValue;
-};
-
-const formatImageUrl = (url) => url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-
 const handleDelete = async (noteId) => {
   if (!confirm("确定要撕掉这张便签吗？")) return;
   try {
-    await axios.delete(`${API_BASE_URL}/api/board/${noteId}/`, {
-      headers: { 'X-CSRFToken': getCookie('csrftoken') }, withCredentials: true
-    });
+    await axios.delete(`${API_BASE_URL}/api/board/${noteId}/`, { withCredentials: true });
     notes.value = notes.value.filter(n => n.id !== noteId);
   } catch (err) { alert("删除失败"); }
 };
@@ -340,113 +328,47 @@ const formatDateShort = (dateStr) => {
   const d = new Date(dateStr);
   return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
+
 onMounted(fetchNotes);
 </script>
 
 <style scoped>
-/* ✨ 核心容器：锁定深色背景 */
 .board-wrapper { 
   position: fixed; top: 0; left: 0; width: 100vw; height: calc(100vh - 65px); 
   background: #2c1e1a; display: flex; flex-direction: column; overflow: hidden; z-index: 10;
-  color: #ffffff; /* 确保标题栏等全局文字默认白色 */
+  color: #ffffff;
 }
-
-/* 顶部标题栏 */
-.board-header { 
-  flex: 0 0 auto; background: rgba(0,0,0,0.9); padding: 10px 15px; 
-  z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); 
-}
+.board-header { flex: 0 0 auto; background: rgba(0,0,0,0.9); padding: 10px 15px; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .header-left h2 { color: #ffffff !important; }
 .header-info { color: #d4a373 !important; }
-
 .canvas-area { flex: 1; position: relative; width: 100%; overflow: hidden; }
-.felt-canvas { width: 100%; height: 100%; background-color: #5d4037; background-image: url('https://www.transparenttextures.com/patterns/felt.png'); border: 4px solid #3e2723; box-shadow: inset 0 0 40px rgba(0,0,0,0.7); position: relative; overflow: auto; }
+.felt-canvas { width: 100%; height: 100%; background-color: #5d4037; background-image: url('https://www.transparenttextures.com/patterns/felt.png'); border: 4px solid #3e2723; box-shadow: inset 0 0 40px rgba(0,0,0,0.7); position: relative; }
+.note-sticky { position: absolute; width: 160px; background: #fffbe6; padding: 10px; box-shadow: 3px 3px 8px rgba(0,0,0,0.4); border-radius: 2px; margin-left: -80px; transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); color: #4a3701 !important; }
 
-/* ✨ 核心修复：便签纸文字颜色强效锁死，无视深色模式 */
-.note-sticky {
-  position: absolute; width: 160px; background: #fffbe6; padding: 10px;
-  box-shadow: 3px 3px 8px rgba(0,0,0,0.4); border-radius: 2px;
-  margin-left: -80px; 
-  transition: left 0.65s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.65s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s ease, opacity 0.4s ease;
-  will-change: left, top, transform, opacity;
-  /* 强行锁死深褐色 */
-  color: #4a3701 !important; 
-}
+/* ✨ Bug 2 修复：已发布便签的图片适配 */
+.s-image-box { margin-top: 5px; border-radius: 2px; overflow: hidden; height: 110px; display: flex; align-items: center; justify-content: center; background: #eee; }
+.s-image { width: 100%; height: 100%; object-fit: cover; } /* 墙上图铺满 */
 
-.note-sticky.first-note-anchor { 
-  border: 2px solid #fadb14; background: #fffdf0; 
-  box-shadow: 0 0 15px rgba(250, 219, 20, 0.3), 3px 3px 8px rgba(0,0,0,0.4); 
-  z-index: 50; 
-}
+.s-title { font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #856404 !important; }
+.s-content { font-size: 12px; color: #5d4037 !important; line-height: 1.3; word-break: break-all; }
 
-/* 限制图片高度 */
-.s-image-box { 
-  margin-top: 5px; border-radius: 2px; overflow: hidden; 
-  max-height: 150px; display: flex; align-items: center; justify-content: center;
-}
-.s-image { width: 100%; height: auto; max-height: 150px; object-fit: cover; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 10px; }
+.publish-note-preview { position: relative; width: 100%; max-width: 360px; animation: modalEnter 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+.preview-card { background: #fffbe6; padding: 20px; border-radius: 4px; box-shadow: 0 15px 50px rgba(0,0,0,0.6); max-height: 90vh; overflow-y: auto; }
 
-.s-title { 
-  font-size: 14px; font-weight: bold; margin-bottom: 5px; 
-  color: #856404 !important; /* 强制深金棕标题 */
-}
-.s-content { 
-  font-size: 12px; color: #5d4037 !important; 
-  line-height: 1.3; word-break: break-all; 
-}
+/* ✨ Bug 2 修复：编辑器图片预览适配 */
+.file-drop-zone { width: 100%; height: 180px; background: rgba(0,0,0,0.05); border: 2px dashed #ffe58f; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; margin-top: 10px; }
+.image-wrapper { width: 100%; height: 100%; position: relative; }
+.img-content { width: 100%; height: 100%; object-fit: contain; background: #f9f9f9; } /* 预览图完整显示 */
+.img-mask { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.5); color: white; font-size: 12px; padding: 4px 0; text-align: center; }
 
-/* ✨ 丝滑优化：红心弹跳动画 */
-.f-like {
-  background: rgba(255, 255, 255, 0.6); border: 1px solid #eee; border-radius: 12px;
-  padding: 2px 8px; cursor: pointer; display: flex; align-items: center; gap: 4px;
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); outline: none;
-  color: #666 !important;
-}
-.f-like.is-liked { 
-  border-color: #ff4d4f; background: #fff1f0; color: #ff4d4f !important; 
-}
-.f-like.is-liked .heart-icon { animation: heartPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-
-@keyframes heartPop { 
-  0% { transform: scale(1); } 
-  50% { transform: scale(1.6); } 
-  100% { transform: scale(1); } 
-}
-
-/* 预览编辑器遮罩 */
-.modal-overlay { 
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-  background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; 
-  align-items: center; z-index: 2000; padding: 20px; 
-}
-
-.publish-note-preview { position: relative; width: 90%; max-width: 380px; animation: modalEnter 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
-.preview-card { background: #fffbe6; padding: 25px; border-radius: 4px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
-
-.preview-input-title { 
-  width: 85%; background: transparent; border: none; border-bottom: 1px dashed #ffe58f; 
-  font-size: 20px; font-weight: bold; color: #856404 !important; outline: none; 
-}
-.preview-textarea-content { 
-  width: 100%; min-height: 120px; background: transparent; border: none; 
-  font-size: 16px; line-height: 1.6; color: #333333 !important; outline: none; resize: none; margin-top: 15px; 
-}
-
-.preview-hint { text-align: center; color: #ffffff !important; font-size: 12px; margin-top: 15px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
-
-/* 基础装饰 */
-.pushpin-red { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 12px; height: 12px; background: radial-gradient(circle at 30% 30%, #ff5252, #b71c1c); border-radius: 50%; z-index: 5; }
-.pushpin-red.large { width: 22px; height: 22px; top: -12px; }
-.anchor-badge { position: absolute; top: -20px; left: 5px; display: flex; align-items: center; gap: 5px; z-index: 60; }
-.badge-text { background: #fadb14; color: #856404; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; border: 1px solid #856404; }
-.collapse-toggle-btn { background: rgba(255, 255, 255, 0.95); border: 1px solid #ddd; border-radius: 4px; font-size: 10px; padding: 2px 8px; cursor: pointer; color: #333; transition: 0.2s; }
-
-.btn-publish-confirm { background: #52c41a; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 15px rgba(82,196,26,0.3); }
-
+/* 其他样式保持 */
+.preview-input-title { width: 80%; background: transparent; border: none; border-bottom: 1px dashed #ffe58f; font-size: 18px; font-weight: bold; color: #856404 !important; outline: none; }
+.close-preview { background: none; border: none; font-size: 24px; cursor: pointer; color: #856404; }
+.preview-textarea-content { width: 100%; min-height: 80px; background: transparent; border: none; font-size: 15px; line-height: 1.5; color: #333 !important; outline: none; resize: none; margin-top: 15px; }
+.btn-publish-confirm { background: #52c41a; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; }
 .fullscreen-mask { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 3000; display: flex; justify-content: center; align-items: center; }
 .full-size-img { max-width: 95%; max-height: 95%; object-fit: contain; }
-
-@media (max-width: 600px) { .note-sticky { width: 140px; margin-left: -70px; } }
-.hidden-input { display: none; }
-@keyframes modalEnter { from { opacity: 0; transform: scale(0.9) translateY(30px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@media (max-width: 600px) { .file-drop-zone { height: 150px; } .preview-card { padding: 15px; } }
+@keyframes modalEnter { from { opacity: 0; transform: scale(0.9) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 </style>
